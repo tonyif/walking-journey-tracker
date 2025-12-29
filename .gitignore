@@ -1,0 +1,59 @@
+# Node modules
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# Build outputs
+dist/
+build/
+
+# Logs
+logs/
+*.log
+
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+
+# Note: .firebaserc is tracked (contains project ID)
+# Note: .github/ and .gitlab-ci.yml are tracked (CI/CD configs)
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Coverage
+coverage/
+*.lcov
+.nyc_output
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# OS files
+Thumbs.db
+Desktop.ini
+
+# Keep firebase.json and firestore.rules (needed for deployment)
+!firebase.json
+!firestore.rules
+
+# Screenshots (track these for README)
+!screenshots/
+!screenshots/*.png
+!screenshots/*.jpg
+!screenshots/*.jpeg

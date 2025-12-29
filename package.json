@@ -1,0 +1,57 @@
+{
+  "name": "walking-journey-tracker",
+  "version": "1.0.0",
+  "description": "Virtual Walking Journey Tracker - Track your daily walks on an interactive map",
+  "main": "index.html",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "scripts": {
+    "start": "npx serve -s .",
+    "dev": "npx serve -s . --listen 8000",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint *.js",
+    "lint:fix": "eslint *.js --fix",
+    "format": "prettier --write \"*.{js,html,css,json}\"",
+    "format:check": "prettier --check \"*.{js,html,css,json}\"",
+    "security:audit": "npm audit",
+    "firebase:deploy": "firebase deploy",
+    "firebase:serve": "firebase serve",
+    "validate": "npm run format:check && npm run lint",
+    "prepublishOnly": "npm run validate"
+  },
+  "keywords": [
+    "fitness",
+    "walking",
+    "tracker",
+    "maps",
+    "pwa",
+    "firebase",
+    "journey"
+  ],
+  "author": "Tony Isaac <tony.issac@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR-USERNAME/walking-journey-tracker"
+  },
+  "bugs": {
+    "url": "https://github.com/YOUR-USERNAME/walking-journey-tracker/issues"
+  },
+  "homepage": "https://globe-trekker.web.app",
+  "devDependencies": {
+    "eslint": "^8.56.0",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-plugin-import": "^2.29.1",
+    "prettier": "^3.1.1",
+    "firebase-tools": "^13.0.0",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "@testing-library/dom": "^9.3.4"
+  },
+  "dependencies": {},
+  "private": true
+}

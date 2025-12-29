@@ -1,0 +1,1098 @@
+---
+title: "Corp QA Enterprise Standards - Perforce & Gerrit"
+description: "Enterprise-grade Perforce and Gerrit best practices for version control and code review at scale"
+tags:
+  - perforce
+  - gerrit
+  - version-control
+  - code-review
+  - enterprise
+  - qa
+  - corp-qa
+team: corp-qa
+language: universal
+alwaysApply: true
+---
+
+# Corp QA Enterprise Standards - Perforce & Gerrit
+
+## Critical Rules
+
+- ALWAYS use atomic commits in Perforce
+- ALWAYS submit code through Gerrit for review
+- ALWAYS write descriptive commit messages (50/72 rule)
+- ALWAYS create CLs (changelists) for logical units of work
+- NEVER commit directly to main/master streams
+- NEVER force push without team agreement
+- ALWAYS link commits to work items/tickets
+- ALWAYS use workspaces (clients) properly in Perforce
+- ALWAYS squash commits before merging (if using Git-Perforce bridge)
+- ALWAYS run pre-submit checks before creating reviews
+
+## Perforce (P4) Best Practices
+
+### Workspace (Client) Configuration
+
+#### Enterprise Workspace Setup
+
+<example>
+# .p4config file (project root)
+P4CLIENT=username-projectname-main
+P4USER=username
+P4PORT=ssl:perforce.nvidia.com:1666
+P4EDITOR=code --wait
+
+# Recommended environment variables
+export P4IGNORE=.p4ignore
+export P4DIFF="p4merge"
+export P4MERGE="p4merge"
+</example>
+
+#### Client Spec Best Practices
+
+<example>
+# Example client spec (p4 client)
+Client: jdoe-myproject-main
+
+Owner: jdoe
+
+Description:
+    John Doe's workspace for MyProject main development
+    
+Root: /home/jdoe/perforce/myproject
+
+Options:
+    noallwrite      # Files are read-only when not opened
+    noclobber       # Don't overwrite writable files on sync
+    nocompress      # Use compression for large files
+    unlocked        # Allow multiple checkouts
+    nomodtime       # Don't preserve mod times
+    normdir         # Normalize line endings
+
+SubmitOptions:
+    submitunchanged # Submit only changed files
+
+LineEnd: local      # Convert to local OS line endings
+
+View:
+    //depot/myproject/main/... //jdoe-myproject-main/...
+    -//depot/myproject/main/build/... //jdoe-myproject-main/build/...
+    -//depot/myproject/main/temp/... //jdoe-myproject-main/temp/...
+</example>
+
+#### .p4ignore Configuration
+
+<example>
+# .p4ignore (similar to .gitignore)
+
+# Build outputs
+build/
+dist/
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.dylib
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Dependencies
+node_modules/
+.venv/
+venv/
+
+# Temporary files
+*.log
+*.tmp
+temp/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Coverage and test reports
+coverage/
+htmlcov/
+*.coverage
+</example>
+
+### Changelist Management
+
+#### Creating Atomic Changelists
+
+<example language="bash">
+#!/bin/bash
+# scripts/p4-create-changelist.sh
+
+# Create a new changelist with description
+create_changelist() {
+    local description="$1"
+    local ticket="$2"
+    
+    if [ -z "$description" ] || [ -z "$ticket" ]; then
+        echo "Usage: create_changelist 'Description' 'TICKET-123'"
+        return 1
+    fi
+    
+    # Create changelist with formatted description
+    p4 change <<EOF
+Change: new
+Description:
+    [$ticket] $description
+    
+    - Detailed change 1
+    - Detailed change 2
+    
+    Testing:
+    - Unit tests pass
+    - Integration tests pass
+    
+    Reviewed-by: reviewer@nvidia.com
+    Tested-on: Linux/Windows
+    
+Files:
+    # Will be populated when files are opened
+EOF
+}
+
+# Example usage
+create_changelist "Add user authentication" "PROJ-1234"
+</example>
+
+#### Changelist Workflow
+
+<example language="bash">
+# 1. Create new changelist
+p4 change
+# Note the changelist number (e.g., 12345)
+
+# 2. Edit files in specific changelist
+p4 edit -c 12345 src/auth.cpp
+p4 add -c 12345 src/auth.h
+
+# 3. Review changes before submit
+p4 opened -c 12345
+p4 diff -c 12345
+
+# 4. Revert specific files if needed
+p4 revert -c 12345 src/debug.cpp
+
+# 5. Submit changelist
+p4 submit -c 12345
+
+# Alternative: Submit with inline description
+p4 submit -d "[PROJ-1234] Add user authentication"
+</example>
+
+### Branching and Streams
+
+#### Stream Depot Structure
+
+<example>
+//stream_depot/
+├── myproject/
+│   ├── main/                    # Main development stream
+│   │   ├── src/
+│   │   ├── tests/
+│   │   └── docs/
+│   ├── release-1.0/            # Release branch
+│   │   ├── src/
+│   │   └── tests/
+│   ├── dev/                    # Development stream
+│   │   └── experimental/
+│   └── feature/
+│       ├── PROJ-1234-auth/    # Feature branch
+│       └── PROJ-5678-api/     # Another feature
+</example>
+
+#### Stream Spec Configuration
+
+<example>
+# Stream spec for feature branch (p4 stream)
+Stream: //stream_depot/myproject/feature/PROJ-1234-auth
+
+Owner: jdoe
+
+Name: PROJ-1234-auth
+
+Parent: //stream_depot/myproject/main
+
+Type: development
+
+Description:
+    Feature branch for user authentication (PROJ-1234)
+    
+    Parent: main
+    Merge: bidirectional
+    
+Options:
+    allsubmit       # Allow submits from any workspace
+    unlocked        # Allow changes to stream spec
+    toparent        # Propagate to parent
+    fromparent      # Accept changes from parent
+
+Paths:
+    share ...       # Share all files from parent
+    import+ ...     # Import changes from parent
+</example>
+
+#### Merging Strategies
+
+<example language="bash">
+#!/bin/bash
+# scripts/p4-merge-workflow.sh
+
+# Merge from main to feature branch
+merge_from_main() {
+    local feature_stream="$1"
+    
+    echo "Merging from main to $feature_stream..."
+    
+    # Switch to feature stream
+    p4 switch -s "$feature_stream"
+    
+    # Preview merge
+    p4 merge -n -S "$feature_stream"
+    
+    # Perform merge
+    p4 merge -S "$feature_stream"
+    
+    # Resolve conflicts
+    p4 resolve -am  # Auto-merge safe changes
+    p4 resolve      # Interactive resolve for conflicts
+    
+    # Submit merge
+    p4 submit -d "Merge from main to $feature_stream"
+}
+
+# Merge feature branch back to main
+merge_to_main() {
+    local feature_stream="$1"
+    
+    echo "Merging $feature_stream to main..."
+    
+    # Switch to main stream
+    p4 switch -s //stream_depot/myproject/main
+    
+    # Copy integrate (prefer feature changes)
+    p4 integrate -S "$feature_stream"
+    
+    # Resolve
+    p4 resolve -at  # Accept theirs (feature branch)
+    
+    # Submit
+    p4 submit -d "Merge $feature_stream to main"
+}
+
+# Example usage
+merge_from_main "//stream_depot/myproject/feature/PROJ-1234-auth"
+</example>
+
+### Shelving Best Practices
+
+#### Work-in-Progress Shelving
+
+<example language="bash">
+#!/bin/bash
+# Save work in progress
+
+# Create changelist
+CL=$(p4 change -o | p4 change -i | grep -oP '(?<=Change )\d+')
+
+# Add files to changelist
+p4 edit -c $CL src/*.cpp
+p4 add -c $CL src/new_file.h
+
+# Shelve changes
+p4 shelve -c $CL
+
+# Revert local changes (keep shelved)
+p4 revert -c $CL //...
+
+# Later: unshelve changes
+p4 unshelve -s $CL -c $CL
+
+# Update shelved files after changes
+p4 shelve -r -c $CL
+</example>
+
+### Perforce + CI/CD Integration
+
+#### Triggering CI on Changelist
+
+<example language="python">
+#!/usr/bin/env python3
+# scripts/p4-trigger-ci.py
+"""
+Perforce trigger to run CI on changelist submission.
+Install in P4 triggers with: change-commit //... "python3 /path/to/p4-trigger-ci.py %change%"
+"""
+
+import sys
+import subprocess
+import requests
+from P4 import P4
+
+def trigger_ci(changelist_num):
+    """Trigger CI/CD pipeline for submitted changelist."""
+    p4 = P4()
+    p4.connect()
+    
+    # Get changelist details
+    change = p4.run_describe(changelist_num)[0]
+    
+    # Extract metadata
+    description = change.get('desc', '')
+    files = change.get('depotFile', [])
+    user = change.get('user', '')
+    
+    # Trigger GitLab CI (if using Git-Perforce bridge)
+    gitlab_url = "https://gitlab-master.nvidia.com/api/v4/projects/123/trigger/pipeline"
+    gitlab_token = "YOUR_TRIGGER_TOKEN"
+    
+    payload = {
+        "token": gitlab_token,
+        "ref": "main",
+        "variables[P4_CHANGELIST]": str(changelist_num),
+        "variables[P4_USER]": user,
+    }
+    
+    response = requests.post(gitlab_url, data=payload)
+    
+    if response.status_code == 201:
+        print(f"✅ CI triggered for changelist {changelist_num}")
+        return 0
+    else:
+        print(f"❌ Failed to trigger CI: {response.text}")
+        return 1
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Usage: p4-trigger-ci.py <changelist>")
+        sys.exit(1)
+    
+    changelist = sys.argv[1]
+    sys.exit(trigger_ci(changelist))
+</example>
+
+## Gerrit Best Practices
+
+### Gerrit Workflow
+
+#### Setting Up Gerrit
+
+<example language="bash">
+# Clone repository with commit-msg hook
+git clone ssh://username@gerrit.nvidia.com:29418/myproject
+cd myproject
+
+# Install commit-msg hook (adds Change-Id)
+curl -Lo .git/hooks/commit-msg \
+    https://gerrit.nvidia.com/tools/hooks/commit-msg
+chmod +x .git/hooks/commit-msg
+
+# Configure git for Gerrit
+git config remote.origin.push HEAD:refs/for/main
+</example>
+
+#### Creating a Change for Review
+
+<example language="bash">
+#!/bin/bash
+# Gerrit workflow script
+
+# 1. Create feature branch
+git checkout -b feature/PROJ-1234-auth
+
+# 2. Make changes
+# ... edit files ...
+
+# 3. Stage changes
+git add src/auth.cpp src/auth.h
+
+# 4. Commit with proper message (Change-Id added by hook)
+git commit -m "[PROJ-1234] Add user authentication
+
+Implement JWT-based authentication with the following:
+- Token generation and validation
+- User session management
+- Role-based access control
+
+Testing:
+- Unit tests for auth service
+- Integration tests for login flow
+- Security testing completed
+
+Bug: PROJ-1234
+Change-Id: I1234567890abcdef1234567890abcdef12345678"
+
+# 5. Push to Gerrit for review
+git push origin HEAD:refs/for/main
+
+# Alternative: Push with reviewers and topic
+git push origin HEAD:refs/for/main%r=reviewer1@nvidia.com,r=reviewer2@nvidia.com,topic=authentication
+</example>
+
+### Commit Message Standards
+
+#### Gerrit Commit Message Format
+
+<example>
+# Format: [TICKET] Short summary (50 chars)
+#
+# Detailed description (wrap at 72 chars)
+# 
+# - Bullet point 1
+# - Bullet point 2
+#
+# Testing: How was this tested
+# Bug: TICKET-NUMBER
+# Change-Id: (auto-generated by commit-msg hook)
+
+[PROJ-1234] Add user authentication system
+
+Implement JWT-based authentication to replace the legacy
+session-based authentication. This provides better security
+and scalability for our microservices architecture.
+
+Changes:
+- JWT token generation with 1-hour expiry
+- Refresh token mechanism (7-day expiry)
+- Role-based access control (RBAC)
+- Integration with existing user database
+
+Testing:
+- Unit tests: 95% coverage on auth module
+- Integration tests: Login/logout flow
+- Security testing: Penetration test passed
+- Load testing: 1000 req/s sustained
+
+Performance:
+- Token validation: <1ms average
+- Login: <100ms average
+
+Bug: PROJ-1234
+Change-Id: I1234567890abcdef1234567890abcdef12345678
+Reviewed-on: https://gerrit.nvidia.com/123456
+Reviewed-by: Jane Smith <jsmith@nvidia.com>
+Tested-by: Build Bot <buildbot@nvidia.com>
+</example>
+
+### Code Review Process
+
+#### Reviewer Workflow
+
+<example language="bash">
+# 1. Fetch and checkout change
+git fetch origin refs/changes/56/123456/3
+git checkout FETCH_HEAD
+
+# Or use Gerrit's download commands
+git review -d 123456
+
+# 2. Review code
+git log -1 -p
+git diff HEAD~1
+
+# 3. Test locally
+make clean && make test
+
+# 4. Post review comments via Gerrit UI or CLI
+# Install git-review: pip install git-review
+
+# 5. Vote on change
+# +2: Looks good to me, approved
+# +1: Looks good to me, but someone else must approve
+#  0: No score
+# -1: I would prefer this is not merged as is
+# -2: This shall not be merged
+
+# 6. Submit (if approver)
+# Done via Gerrit UI after +2 and CI passes
+</example>
+
+#### Amending Changes Based on Review
+
+<example language="bash">
+#!/bin/bash
+# Address review comments
+
+# 1. Checkout the change
+git review -d 123456
+
+# 2. Make fixes based on review comments
+# ... edit files ...
+
+# 3. Stage changes
+git add src/auth.cpp
+
+# 4. Amend commit (preserves Change-Id)
+git commit --amend
+
+# 5. Push updated patchset
+git review
+# Or: git push origin HEAD:refs/for/main
+
+# The Change-Id ensures this updates the existing change
+# rather than creating a new one
+</example>
+
+### Gerrit Labels and Voting
+
+#### Custom Label Configuration
+
+<example>
+# project.config for Gerrit repository
+
+[label "Code-Review"]
+    function = MaxWithBlock
+    value = -2 This shall not be merged
+    value = -1 I would prefer this is not merged as is
+    value =  0 No score
+    value = +1 Looks good to me, but someone else must approve
+    value = +2 Looks good to me, approved
+    defaultValue = 0
+
+[label "Verified"]
+    function = MaxWithBlock
+    value = -1 Fails
+    value =  0 No score
+    value = +1 Verified
+    defaultValue = 0
+
+[label "Security-Review"]
+    function = MaxWithBlock
+    value = -1 Security concerns
+    value =  0 No score
+    value = +1 Security approved
+    defaultValue = 0
+
+[label "Performance-Review"]
+    function = MaxNoBlock
+    value = -1 Performance concerns
+    value =  0 No score
+    value = +1 Performance acceptable
+    defaultValue = 0
+</example>
+
+### Gerrit + CI/CD Integration
+
+#### GitLab CI with Gerrit
+
+<example>
+# .gitlab-ci.yml for Gerrit integration
+
+variables:
+  GERRIT_URL: "https://gerrit.nvidia.com"
+  GERRIT_PROJECT: "myproject"
+
+stages:
+  - verify
+  - build
+  - test
+  - report
+
+verify:
+  stage: verify
+  script:
+    - echo "Verifying Gerrit change ${GERRIT_CHANGE_NUMBER} patchset ${GERRIT_PATCHSET_NUMBER}"
+    - git fetch origin ${GERRIT_REFSPEC}
+    - git checkout FETCH_HEAD
+  only:
+    variables:
+      - $GERRIT_CHANGE_NUMBER
+
+build:
+  stage: build
+  script:
+    - make clean
+    - make -j$(nproc)
+  artifacts:
+    paths:
+      - build/
+    expire_in: 1 hour
+
+test:unit:
+  stage: test
+  script:
+    - make test
+    - make coverage
+  coverage: '/Total.*\s+(\d+\.\d+)%/'
+  artifacts:
+    reports:
+      junit: test-results.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+
+test:security:
+  stage: test
+  script:
+    - bandit -r src/ -f json -o security-report.json
+  artifacts:
+    paths:
+      - security-report.json
+
+report:gerrit:
+  stage: report
+  script:
+    - |
+      # Post results back to Gerrit
+      if [ $CI_JOB_STATUS == "success" ]; then
+        VOTE="+1"
+        MESSAGE="Build and tests passed"
+      else
+        VOTE="-1"
+        MESSAGE="Build or tests failed"
+      fi
+      
+      ssh -p 29418 buildbot@gerrit.nvidia.com \
+        gerrit review \
+        --project ${GERRIT_PROJECT} \
+        --verified ${VOTE} \
+        --message "\"${MESSAGE}\nPipeline: ${CI_PIPELINE_URL}\"" \
+        ${GERRIT_PATCHSET_REVISION}
+  when: always
+</example>
+
+#### Gerrit Trigger Script
+
+<example language="python">
+#!/usr/bin/env python3
+# scripts/gerrit-trigger.py
+"""Monitor Gerrit for new changes and trigger CI."""
+
+import time
+import subprocess
+import requests
+from datetime import datetime
+
+GERRIT_URL = "https://gerrit.nvidia.com"
+GERRIT_PROJECT = "myproject"
+GITLAB_TRIGGER_TOKEN = "YOUR_TOKEN"
+GITLAB_PROJECT_ID = "123"
+
+def get_open_changes():
+    """Get open changes from Gerrit."""
+    url = f"{GERRIT_URL}/changes/?q=project:{GERRIT_PROJECT}+status:open"
+    response = requests.get(url)
+    # Remove XSSI protection prefix
+    data = response.text[4:]
+    return json.loads(data)
+
+def trigger_gitlab_ci(change_number, patchset_number, ref):
+    """Trigger GitLab CI for Gerrit change."""
+    url = f"https://gitlab-master.nvidia.com/api/v4/projects/{GITLAB_PROJECT_ID}/trigger/pipeline"
+    
+    payload = {
+        "token": GITLAB_TRIGGER_TOKEN,
+        "ref": "main",
+        "variables[GERRIT_CHANGE_NUMBER]": str(change_number),
+        "variables[GERRIT_PATCHSET_NUMBER]": str(patchset_number),
+        "variables[GERRIT_REFSPEC]": ref,
+    }
+    
+    response = requests.post(url, data=payload)
+    return response.status_code == 201
+
+def monitor_gerrit():
+    """Monitor Gerrit and trigger CI for new changes."""
+    seen_changes = set()
+    
+    while True:
+        try:
+            changes = get_open_changes()
+            
+            for change in changes:
+                change_id = f"{change['_number']}-{change['revisions'][-1]}"
+                
+                if change_id not in seen_changes:
+                    print(f"New change detected: {change['subject']}")
+                    
+                    success = trigger_gitlab_ci(
+                        change['_number'],
+                        len(change['revisions']),
+                        change['revisions'][-1]['ref']
+                    )
+                    
+                    if success:
+                        print(f"✅ CI triggered for change {change['_number']}")
+                        seen_changes.add(change_id)
+                    else:
+                        print(f"❌ Failed to trigger CI for change {change['_number']}")
+            
+            time.sleep(60)  # Check every minute
+            
+        except Exception as e:
+            print(f"Error monitoring Gerrit: {e}")
+            time.sleep(300)  # Wait 5 minutes on error
+
+if __name__ == "__main__":
+    monitor_gerrit()
+</example>
+
+## Perforce + Gerrit Hybrid Workflow
+
+### Git-Perforce Bridge
+
+<example language="bash">
+#!/bin/bash
+# scripts/git-p4-workflow.sh
+"""
+Workflow for teams using Git locally with Perforce as central repo
+"""
+
+# Initialize git-p4
+git p4 clone //depot/myproject/main myproject
+cd myproject
+
+# Configure git-p4
+git config git-p4.useclientspec true
+git config git-p4.attemptRCSCleanup true
+
+# Daily sync from Perforce
+git p4 sync
+
+# Create feature branch
+git checkout -b feature/PROJ-1234
+
+# Make changes and commit locally (multiple commits OK)
+git add .
+git commit -m "Work in progress"
+git commit -m "More changes"
+git commit -m "Final touches"
+
+# Squash commits before submitting
+git rebase -i origin/p4/master
+
+# Submit to Perforce (creates single changelist)
+git p4 submit
+
+# Alternative: Use Gerrit for review before Perforce
+# 1. Push to Gerrit
+git push gerrit HEAD:refs/for/main
+
+# 2. After Gerrit approval, sync to Perforce
+git p4 submit
+</example>
+
+## Security and Access Control
+
+### Perforce Protections
+
+<example>
+# p4 protect configuration
+
+Protections:
+    write user * * //...
+    
+    ## Development team - full access to dev streams
+    super user dev-leads * //depot/myproject/dev/...
+    write user developers * //depot/myproject/dev/...
+    
+    ## Main stream - restricted
+    write user integration-bot * //depot/myproject/main/...
+    open user developers * //depot/myproject/main/...
+    
+    ## Release streams - very restricted
+    write user release-managers * //depot/myproject/release/...
+    read user developers * //depot/myproject/release/...
+    
+    ## Exclude sensitive files
+    =write user * * -//depot/myproject/config/production/*
+    super user security-team * //depot/myproject/config/production/*
+</example>
+
+### Gerrit Access Control
+
+<example>
+# Access controls in refs/meta/config
+
+[access "refs/*"]
+    read = group Registered Users
+    
+[access "refs/heads/*"]
+    label-Code-Review = -2..+2 group Core-Reviewers
+    label-Verified = -1..+1 group CI-Bots
+    submit = group Core-Reviewers
+    
+[access "refs/heads/main"]
+    label-Code-Review = -2..+2 group Maintainers
+    submit = group Maintainers
+    
+[access "refs/for/refs/*"]
+    push = group Registered Users
+    pushMerge = group Core-Reviewers
+</example>
+
+## Performance Optimization
+
+### Perforce Performance
+
+<example language="bash">
+#!/bin/bash
+# Performance optimization tips
+
+# Use sparse/narrow workspaces
+p4 client -o | sed 's|//depot/...|//depot/myproject/src/...|' | p4 client -i
+
+# Parallel sync for faster downloads
+p4 sync --parallel=threads=4,batch=8,min=1
+
+# Clean up have list periodically
+p4 sync -f //...#0  # Remove have records
+p4 sync -f //...#head  # Re-sync
+
+# Use proxy for remote offices
+P4PORT=proxy.remote.nvidia.com:1666 p4 sync
+
+# Optimize large binary files
+p4 configure set lbr.replication=ondemand
+</example>
+
+### Gerrit Performance
+
+<example language="bash">
+# Fetch only necessary refs
+git config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
+
+# Use shallow clones for CI
+git clone --depth=1 ssh://gerrit.nvidia.com:29418/myproject
+
+# Prune old changes
+git review --prune
+
+# Configure Git for better performance
+git config core.preloadindex true
+git config core.fscache true
+git config gc.auto 256
+</example>
+
+## Monitoring and Metrics
+
+### Perforce Metrics
+
+<example language="python">
+#!/usr/bin/env python3
+# scripts/p4-metrics.py
+"""Collect Perforce metrics for monitoring."""
+
+from P4 import P4
+import json
+from datetime import datetime, timedelta
+
+def collect_metrics():
+    """Collect Perforce usage metrics."""
+    p4 = P4()
+    p4.connect()
+    
+    metrics = {
+        "timestamp": datetime.now().isoformat(),
+        "users": {
+            "total": len(p4.run_users()),
+            "active_today": 0,
+        },
+        "changes": {
+            "total": 0,
+            "last_24h": 0,
+        },
+        "storage": {
+            "depot_size_gb": 0,
+        }
+    }
+    
+    # Active users in last 24h
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y/%m/%d")
+    active_users = p4.run_changes("-u", "*", f"@>={yesterday}")
+    metrics["users"]["active_today"] = len(set([c['user'] for c in active_users]))
+    
+    # Total changes
+    all_changes = p4.run_changes()
+    metrics["changes"]["total"] = len(all_changes)
+    metrics["changes"]["last_24h"] = len(active_users)
+    
+    return metrics
+
+if __name__ == "__main__":
+    metrics = collect_metrics()
+    print(json.dumps(metrics, indent=2))
+</example>
+
+### Gerrit Metrics
+
+<example language="python">
+#!/usr/bin/env python3
+# scripts/gerrit-metrics.py
+"""Collect Gerrit code review metrics."""
+
+import requests
+import json
+from datetime import datetime, timedelta
+
+GERRIT_URL = "https://gerrit.nvidia.com"
+PROJECT = "myproject"
+
+def collect_metrics():
+    """Collect Gerrit review metrics."""
+    
+    # Open changes
+    open_url = f"{GERRIT_URL}/changes/?q=project:{PROJECT}+status:open"
+    open_resp = requests.get(open_url)
+    open_changes = json.loads(open_resp.text[4:])
+    
+    # Merged changes (last 30 days)
+    merged_url = f"{GERRIT_URL}/changes/?q=project:{PROJECT}+status:merged+age:30d"
+    merged_resp = requests.get(merged_url)
+    merged_changes = json.loads(merged_resp.text[4:])
+    
+    metrics = {
+        "timestamp": datetime.now().isoformat(),
+        "open_changes": len(open_changes),
+        "merged_last_30d": len(merged_changes),
+        "avg_review_time_hours": 0,
+        "changes_per_author": {},
+    }
+    
+    # Calculate average review time
+    if merged_changes:
+        review_times = []
+        for change in merged_changes:
+            created = datetime.fromisoformat(change['created'].replace('Z', '+00:00'))
+            updated = datetime.fromisoformat(change['updated'].replace('Z', '+00:00'))
+            review_times.append((updated - created).total_seconds() / 3600)
+        metrics["avg_review_time_hours"] = sum(review_times) / len(review_times)
+    
+    # Changes per author
+    for change in merged_changes:
+        author = change['owner']['email']
+        metrics["changes_per_author"][author] = \
+            metrics["changes_per_author"].get(author, 0) + 1
+    
+    return metrics
+
+if __name__ == "__main__":
+    metrics = collect_metrics()
+    print(json.dumps(metrics, indent=2))
+</example>
+
+## Troubleshooting
+
+### Common Perforce Issues
+
+<example language="bash">
+# Issue: Files not syncing
+p4 sync -f //...  # Force sync
+
+# Issue: Workspace out of sync
+p4 clean //...  # Remove untracked files
+p4 reconcile //...  # Detect local changes
+
+# Issue: Locked files
+p4 opened -a | grep locked
+p4 unlock -f //depot/path/to/file
+
+# Issue: Submit fails
+p4 resolve -am  # Auto-merge
+p4 resolve  # Interactive resolve
+p4 submit
+
+# Issue: Performance slow
+p4 configure set net.maxwait=300
+p4 configure set net.tcpsize=524288
+</example>
+
+### Common Gerrit Issues
+
+<example language="bash">
+# Issue: Push rejected (missing Change-Id)
+git commit --amend  # Re-add via commit-msg hook
+
+# Issue: Cannot push
+git push origin HEAD:refs/for/main
+
+# Issue: Change not appearing
+# Check project permissions in Gerrit UI
+
+# Issue: Rebase needed
+git fetch origin
+git rebase origin/main
+git push origin HEAD:refs/for/main
+
+# Issue: Multiple commits (should be one)
+git rebase -i origin/main  # Squash
+git push origin HEAD:refs/for/main
+</example>
+
+## Best Practices Summary
+
+### Perforce Checklist ✅
+
+- [ ] Use atomic changelists (one logical change)
+- [ ] Write descriptive commit messages
+- [ ] Link to work items/tickets
+- [ ] Use streams for branching
+- [ ] Configure .p4ignore
+- [ ] Set up workspace views properly
+- [ ] Use parallel sync for performance
+- [ ] Regular reconcile and clean
+- [ ] Shelve work-in-progress
+- [ ] Never commit to main directly
+
+### Gerrit Checklist ✅
+
+- [ ] Install commit-msg hook
+- [ ] Write proper commit messages (50/72 rule)
+- [ ] Include Change-Id
+- [ ] Link to bug tracker
+- [ ] Squash commits before review
+- [ ] Test locally before pushing
+- [ ] Address review comments promptly
+- [ ] Keep changes small and focused
+- [ ] Add reviewers appropriately
+- [ ] Wait for CI verification before submitting
+
+## Integration with Corp QA Standards
+
+### Version Management
+
+Both Perforce and Gerrit integrate with VERSION file:
+
+<example language="bash">
+# Perforce: Update version in changelist
+p4 edit -c $CL VERSION
+echo "1.1.0" > VERSION
+p4 submit -c $CL -d "[RELEASE] Version 1.1.0"
+
+# Gerrit: Update version in commit
+git checkout -b release-1.1.0
+echo "1.1.0" > VERSION
+git add VERSION CHANGELOG.md
+git commit -m "[RELEASE] Version 1.1.0"
+git push origin HEAD:refs/for/main%topic=release
+</example>
+
+### CI/CD Integration
+
+Both systems trigger CI/CD pipelines:
+- Perforce: Via triggers or polling
+- Gerrit: Via ref updates or webhooks
+- Both: Post results back to review system
+
+## Resources
+
+- **Perforce Documentation**: https://www.perforce.com/manuals/p4guide/
+- **Gerrit Documentation**: https://gerrit-review.googlesource.com/Documentation/
+- **Git-P4**: https://git-scm.com/docs/git-p4
+- **Code Review Best Practices**: https://google.github.io/eng-practices/review/
+
+---
+
+**Version**: 1.0.0
+**Last Updated**: December 2025
+**Created By**: Tissue Sackey (tissac@nvidia.com)

@@ -1,0 +1,101 @@
+╔══════════════════════════════════════════════════════════════╗
+║     📸 QUICK SCREENSHOT CAPTURE INSTRUCTIONS                ║
+╚══════════════════════════════════════════════════════════════╝
+
+🚀 FASTEST METHOD - Using Chrome DevTools:
+
+1. Open your app: https://globe-trekker.web.app (or localhost)
+
+2. Press F12 (open DevTools)
+
+3. Press Ctrl+Shift+P (Command Palette)
+
+4. Type "Capture full size screenshot" and press Enter
+
+5. Image saves to Downloads folder automatically!
+
+
+📸 SCREENSHOT CHECKLIST:
+
+□ Screenshot 1: dashboard.png
+  Steps:
+  ✓ Set route: Kanyakumari to Leh
+  ✓ Add 5-10 walks (varying distances: 5.5, 6.2, 4.8 km)
+  ✓ Zoom map to show full route
+  ✓ Ensure current position marker is visible
+  ✓ Take full-page screenshot
+
+□ Screenshot 2: route-setup.png
+  Steps:
+  ✓ Click "Change Route" button
+  ✓ Enter: Start = "Paris, France"
+  ✓ Enter: End = "Rome, Italy"
+  ✓ Keep quick route buttons visible
+  ✓ Take screenshot (before clicking Start)
+
+□ Screenshot 3: walk-history.png
+  Steps:
+  ✓ Scroll to walk history section
+  ✓ Show at least 5 walks with varied:
+    - Dates (Dec 20-29, 2024)
+    - Distances (5.5, 6.2, 4.8, 7.1 km)
+    - Notes ("Morning jog", "Evening walk")
+  ✓ Take screenshot of history section
+
+□ Screenshot 4: mobile-view.png
+  Steps:
+  ✓ Open DevTools (F12)
+  ✓ Click device icon (Ctrl+Shift+M)
+  ✓ Select "iPhone 12 Pro" from dropdown
+  ✓ Navigate app (it will auto-resize)
+  ✓ Take screenshot (use DevTools screenshot)
+
+□ Screenshot 5: cloud-sync.png
+  Steps:
+  ✓ Click "☁️ Sign In to Sync" button
+  ✓ Take screenshot of Google Sign-In popup OR
+  ✓ If already signed in, show sync status
+  ✓ Capture the sync indicator
+
+⚡ QUICK TIPS:
+
+✓ Hide bookmarks bar: Ctrl+Shift+B
+✓ Full screen mode: F11
+✓ Clean URL bar: Remove extensions
+✓ Use realistic data (not "test" or "foo")
+
+📏 RECOMMENDED SIZES:
+
+Desktop: 1920x1080 or 1600x900
+Mobile:  390x844 (iPhone) or 412x915 (Android)
+
+🗜️ AFTER CAPTURING:
+
+1. Rename files exactly as:
+   - dashboard.png
+   - route-setup.png
+   - walk-history.png
+   - mobile-view.png
+   - cloud-sync.png
+
+2. Move to: screenshots/ folder
+
+3. Compress if >500 KB:
+   https://tinypng.com/
+
+4. Test in README:
+   npm start
+   (Check if images display correctly)
+
+5. Commit:
+   git add screenshots/*.png
+   git commit -m "docs: add app screenshots"
+   git push
+
+✅ DONE!
+
+═══════════════════════════════════════════════════════════════
+
+Need help? Contact: tony.issac@gmail.com
+Full guide: screenshots/README.md
+

@@ -1,0 +1,178 @@
+# GitLab CI/CD Pipeline for Walking Journey Tracker
+# Corp QA Enterprise Standards Compliant
+
+stages:
+  - validate
+  - test
+  - security
+  - build
+  - deploy
+
+variables:
+  NODE_VERSION: "18"
+
+# Cache dependencies
+cache:
+  key: "$CI_COMMIT_REF_SLUG"
+  paths:
+    - node_modules/
+
+.node_template: &node_job
+  image: node:${NODE_VERSION}
+  before_script:
+    - node --version
+    - npm --version
+    - npm ci
+
+# ============================================
+# VALIDATION STAGE
+# ============================================
+
+validate:format:
+  <<: *node_job
+  stage: validate
+  script:
+    - echo "Checking code formatting..."
+    - npm run format:check
+  allow_failure: false
+
+validate:lint:
+  <<: *node_job
+  stage: validate
+  script:
+    - echo "Running ESLint..."
+    - npm run lint
+  allow_failure: false
+
+# ============================================
+# TEST STAGE
+# ============================================
+
+test:unit:
+  <<: *node_job
+  stage: test
+  script:
+    - echo "Running unit tests..."
+    - npm test
+  allow_failure: true  # Set to false once tests are implemented
+  coverage: '/Lines\s*:\s*(\d+\.\d+)%/'
+
+test:integration:
+  <<: *node_job
+  stage: test
+  script:
+    - echo "Running integration tests..."
+    - echo "Integration tests not yet implemented"
+  allow_failure: true
+
+# ============================================
+# SECURITY STAGE
+# ============================================
+
+security:audit:
+  <<: *node_job
+  stage: security
+  script:
+    - echo "Running npm security audit..."
+    - npm audit --audit-level=moderate
+  allow_failure: true  # Allow pipeline to continue even with moderate vulnerabilities
+
+security:dependencies:
+  <<: *node_job
+  stage: security
+  script:
+    - echo "Checking for outdated dependencies..."
+    - npm outdated || true
+  allow_failure: true
+
+# ============================================
+# BUILD STAGE
+# ============================================
+
+build:validate:
+  <<: *node_job
+  stage: build
+  script:
+    - echo "Validating build artifacts..."
+    - ls -la
+    - test -f index.html
+    - test -f app.js
+    - test -f firebase-sync.js
+    - test -f style.css
+    - test -f manifest.json
+    - test -f sw.js
+    - echo "All required files present"
+  artifacts:
+    paths:
+      - "*.html"
+      - "*.js"
+      - "*.css"
+      - "*.json"
+      - firestore.rules
+    expire_in: 7 days
+
+# ============================================
+# DEPLOY STAGE
+# ============================================
+
+deploy:staging:
+  <<: *node_job
+  stage: deploy
+  script:
+    - echo "Deploying to Firebase Hosting (Staging)..."
+    - npm install -g firebase-tools
+    - firebase deploy --only hosting --token $FIREBASE_TOKEN --project $FIREBASE_PROJECT_ID
+  environment:
+    name: staging
+    url: https://$FIREBASE_PROJECT_ID.web.app
+  only:
+    - develop
+  when: manual
+
+deploy:production:
+  <<: *node_job
+  stage: deploy
+  script:
+    - echo "Deploying to Firebase Hosting (Production)..."
+    - npm install -g firebase-tools
+    - firebase deploy --token $FIREBASE_TOKEN --project $FIREBASE_PROJECT_ID
+  environment:
+    name: production
+    url: https://$FIREBASE_PROJECT_ID.web.app
+  only:
+    - main
+    - tags
+  when: manual
+
+# ============================================
+# RELEASE STAGE (Tags only)
+# ============================================
+
+release:tag:
+  <<: *node_job
+  stage: deploy
+  script:
+    - echo "Creating release for tag $CI_COMMIT_TAG"
+    - echo "Version $(cat VERSION)"
+    - echo "See CHANGELOG.md for release notes"
+  only:
+    - tags
+  artifacts:
+    paths:
+      - VERSION
+      - CHANGELOG.md
+
+# ============================================
+# SCHEDULED JOBS
+# ============================================
+
+# Run security audit weekly
+security:scheduled:
+  <<: *node_job
+  stage: security
+  script:
+    - npm audit
+    - npm outdated
+  only:
+    - schedules
+

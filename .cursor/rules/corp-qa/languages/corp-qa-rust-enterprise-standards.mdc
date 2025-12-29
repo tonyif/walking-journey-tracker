@@ -1,0 +1,834 @@
+---
+title: "Corp QA Enterprise Standards - Rust"
+description: "Enterprise-grade Rust development standards for scalable, production-ready systems"
+tags:
+  - rust
+  - enterprise
+  - qa
+  - scalability
+  - corp-qa
+team: corp-qa
+language: rust
+alwaysApply: true
+---
+
+# Corp QA Enterprise Standards - Rust
+
+## Rust-Specific Enterprise Rules
+
+- ALWAYS use Cargo for build and dependency management
+- ALWAYS run `cargo clippy` and fix all warnings
+- ALWAYS format with `rustfmt`
+- ALWAYS use `cargo-deny` for license and security audits
+- ALWAYS implement proper error handling (Result/Option types)
+- ALWAYS write documentation comments (///)
+- ALWAYS enable strict lints in Cargo.toml
+- NEVER use `unwrap()` or `expect()` in production code
+- NEVER ignore Clippy warnings
+- ALWAYS use `cargo-audit` for vulnerability scanning
+
+## Project Structure
+
+```
+my-rust-project/
+├── Cargo.toml                 # Project manifest
+├── Cargo.lock                 # Dependency lock file
+├── README.md                  # Project documentation
+├── CHANGELOG.md               # Version history
+├── CONTRIBUTING.md            # Contribution guidelines
+├── SECURITY.md                # Security policy
+├── LICENSE                    # License file
+├── .gitlab-ci.yml            # CI/CD pipeline
+├── deny.toml                  # cargo-deny configuration
+├── rustfmt.toml              # Code formatting
+├── .cargo/
+│   └── config.toml           # Cargo configuration
+│
+├── src/
+│   ├── lib.rs                # Library root
+│   ├── main.rs               # Binary entry point
+│   ├── utils.rs              # Utility module
+│   └── error.rs              # Error types
+│
+├── tests/                     # Integration tests
+│   ├── integration_test.rs
+│   └── common/
+│       └── mod.rs
+│
+├── benches/                   # Benchmarks (criterion)
+│   └── benchmark.rs
+│
+├── examples/                  # Example usage
+│   └── example.rs
+│
+└── docs/                      # Additional documentation
+    └── ARCHITECTURE.md
+```
+
+## Cargo.toml Configuration
+
+### Enterprise Cargo.toml
+
+<example>
+[package]
+name = "myproject"
+version = "1.0.0"
+authors = ["Your Name <your.email@nvidia.com>"]
+edition = "2021"
+rust-version = "1.70"
+description = "Enterprise-grade Rust project"
+documentation = "https://docs.rs/myproject"
+repository = "https://gitlab-master.nvidia.com/myproject"
+license = "MIT OR Apache-2.0"
+keywords = ["enterprise", "qa", "production"]
+categories = ["development-tools"]
+readme = "README.md"
+
+[dependencies]
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Async runtime (if needed)
+tokio = { version = "1", features = ["full"] }
+
+[dev-dependencies]
+# Testing
+criterion = "0.5"
+proptest = "1.0"
+mockall = "0.12"
+
+# Test utilities
+tempfile = "3.8"
+pretty_assertions = "1.4"
+
+[build-dependencies]
+# Build scripts if needed
+
+[[bin]]
+name = "myproject"
+path = "src/main.rs"
+
+[[bench]]
+name = "benchmark"
+harness = false
+
+# Strict lints for production code
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+unused_results = "deny"
+
+[lints.clippy]
+all = "deny"
+pedantic = "warn"
+nursery = "warn"
+cargo = "warn"
+
+# Performance optimizations
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
+
+[profile.dev]
+opt-level = 0
+debug = true
+
+[profile.test]
+opt-level = 0
+</example>
+
+## Version Management (Rust)
+
+### Version in Cargo.toml and VERSION file
+
+<example language="bash">
+#!/bin/bash
+# scripts/update_version.sh
+
+NEW_VERSION=$1
+
+if [ -z "$NEW_VERSION" ]; then
+    echo "Usage: ./update_version.sh 1.0.0"
+    exit 1
+fi
+
+# Update VERSION file
+echo "$NEW_VERSION" > VERSION
+
+# Update Cargo.toml
+sed -i "s/^version = .*/version = \"$NEW_VERSION\"/" Cargo.toml
+
+# Update lock file
+cargo update --workspace
+
+echo "✅ Version updated to $NEW_VERSION"
+echo "Don't forget to:"
+echo "  1. Update CHANGELOG.md"
+echo "  2. Git commit: git commit -am 'Release v$NEW_VERSION'"
+echo "  3. Git tag: git tag v$NEW_VERSION"
+echo "  4. Git push: git push --tags"
+</example>
+
+## Error Handling (Best Practices)
+
+### Custom Error Types with thiserror
+
+<example>
+// src/error.rs
+use thiserror::Error;
+
+/// Application-specific error types
+#[derive(Error, Debug)]
+pub enum AppError {
+    #[error("Configuration error: {0}")]
+    Config(String),
+    
+    #[error("Database error: {0}")]
+    Database(#[from] sqlx::Error),
+    
+    #[error("I/O error: {0}")]
+    Io(#[from] std::io::Error),
+    
+    #[error("Validation error: {field} - {message}")]
+    Validation { field: String, message: String },
+    
+    #[error("Not found: {resource}")]
+    NotFound { resource: String },
+    
+    #[error("Internal error: {0}")]
+    Internal(String),
+}
+
+/// Result type alias for convenience
+pub type Result<T> = std::result::Result<T, AppError>;
+</example>
+
+### Error Handling Patterns
+
+<example>
+use crate::error::{AppError, Result};
+
+// GOOD: Proper error handling
+pub fn read_config(path: &str) -> Result<Config> {
+    let contents = std::fs::read_to_string(path)
+        .map_err(|e| AppError::Config(format!("Failed to read {}: {}", path, e)))?;
+    
+    let config: Config = serde_json::from_str(&contents)
+        .map_err(|e| AppError::Config(format!("Invalid JSON: {}", e)))?;
+    
+    Ok(config)
+}
+
+// GOOD: Using anyhow for application logic
+use anyhow::{Context, Result as AnyhowResult};
+
+pub fn process_data(input: &str) -> AnyhowResult<Data> {
+    let file = std::fs::File::open(input)
+        .context(format!("Failed to open file: {}", input))?;
+    
+    let data = parse_file(file)
+        .context("Failed to parse file")?;
+    
+    Ok(data)
+}
+
+// BAD: Using unwrap/expect in production
+pub fn bad_example(path: &str) -> Config {
+    let contents = std::fs::read_to_string(path).unwrap();  // ❌ DON'T DO THIS
+    serde_json::from_str(&contents).expect("Invalid JSON")  // ❌ DON'T DO THIS
+}
+</example>
+
+## Testing Standards (Rust)
+
+### Unit Tests
+
+<example>
+// src/utils.rs
+/// Doubles the input value
+pub fn double_value(x: i32) -> i32 {
+    x * 2
+}
+
+/// Validates input is positive
+pub fn validate_positive(x: i32) -> Result<i32> {
+    if x > 0 {
+        Ok(x)
+    } else {
+        Err(AppError::Validation {
+            field: "input".to_string(),
+            message: "Must be positive".to_string(),
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pretty_assertions::assert_eq;
+    
+    #[test]
+    fn test_double_value() {
+        assert_eq!(double_value(21), 42);
+        assert_eq!(double_value(0), 0);
+        assert_eq!(double_value(-5), -10);
+    }
+    
+    #[test]
+    fn test_validate_positive_success() {
+        assert!(validate_positive(42).is_ok());
+        assert_eq!(validate_positive(1).unwrap(), 1);
+    }
+    
+    #[test]
+    fn test_validate_positive_failure() {
+        assert!(validate_positive(0).is_err());
+        assert!(validate_positive(-1).is_err());
+    }
+    
+    // Property-based testing with proptest
+    use proptest::prelude::*;
+    
+    proptest! {
+        #[test]
+        fn test_double_value_property(x in -1000i32..1000i32) {
+            let result = double_value(x);
+            prop_assert_eq!(result, x * 2);
+        }
+        
+        #[test]
+        fn test_validate_positive_property(x in 1i32..1000i32) {
+            prop_assert!(validate_positive(x).is_ok());
+        }
+    }
+}
+</example>
+
+### Integration Tests
+
+<example>
+// tests/integration_test.rs
+use myproject::*;
+use std::fs;
+use tempfile::TempDir;
+
+#[test]
+fn test_config_loading() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = temp_dir.path().join("config.json");
+    
+    fs::write(&config_path, r#"{"version": "1.0.0"}"#).unwrap();
+    
+    let config = read_config(config_path.to_str().unwrap()).unwrap();
+    assert_eq!(config.version, "1.0.0");
+}
+
+#[test]
+fn test_end_to_end_workflow() {
+    // Full workflow test
+    let input = prepare_test_data();
+    let result = process_workflow(input).unwrap();
+    assert!(result.is_valid());
+}
+</example>
+
+### Mocking with mockall
+
+<example>
+use mockall::automock;
+use mockall::predicate::*;
+
+#[automock]
+pub trait Database {
+    fn get_user(&self, id: i32) -> Result<User>;
+    fn save_user(&mut self, user: &User) -> Result<()>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_with_mock_database() {
+        let mut mock = MockDatabase::new();
+        
+        mock.expect_get_user()
+            .with(eq(42))
+            .times(1)
+            .returning(|_| Ok(User { id: 42, name: "Test".to_string() }));
+        
+        let user = mock.get_user(42).unwrap();
+        assert_eq!(user.id, 42);
+    }
+}
+</example>
+
+## CI/CD Pipeline (GitLab)
+
+### .gitlab-ci.yml for Rust
+
+<example>
+# .gitlab-ci.yml
+stages:
+  - check
+  - test
+  - security
+  - build
+  - deploy
+
+variables:
+  RUST_VERSION: "1.70"
+  CARGO_HOME: "$CI_PROJECT_DIR/.cargo"
+
+cache:
+  key: "$CI_COMMIT_REF_SLUG"
+  paths:
+    - .cargo/
+    - target/
+
+.rust_job: &rust_template
+  image: rust:${RUST_VERSION}
+  before_script:
+    - rustc --version
+    - cargo --version
+
+check:format:
+  <<: *rust_template
+  stage: check
+  script:
+    - rustup component add rustfmt
+    - cargo fmt -- --check
+
+check:clippy:
+  <<: *rust_template
+  stage: check
+  script:
+    - rustup component add clippy
+    - cargo clippy --all-targets --all-features -- -D warnings
+
+test:unit:
+  <<: *rust_template
+  stage: test
+  script:
+    - cargo test --all-features --verbose
+  coverage: '/^\s*lines:\s*(\d+\.\d+)%/'
+
+test:coverage:
+  <<: *rust_template
+  stage: test
+  before_script:
+    - cargo install cargo-tarpaulin
+  script:
+    - cargo tarpaulin --all-features --workspace --timeout 300 --out Xml --out Html
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: cobertura.xml
+    paths:
+      - tarpaulin-report.html
+  coverage: '/^\d+.\d+% coverage/'
+
+test:doc:
+  <<: *rust_template
+  stage: test
+  script:
+    - cargo doc --no-deps --all-features
+  artifacts:
+    paths:
+      - target/doc
+
+security:audit:
+  <<: *rust_template
+  stage: security
+  script:
+    - cargo install cargo-audit
+    - cargo audit
+  allow_failure: true
+
+security:deny:
+  <<: *rust_template
+  stage: security
+  script:
+    - cargo install cargo-deny
+    - cargo deny check
+  allow_failure: true
+
+build:release:
+  <<: *rust_template
+  stage: build
+  script:
+    - cargo build --release --all-features
+  artifacts:
+    paths:
+      - target/release/myproject
+    expire_in: 7 days
+  only:
+    - main
+    - tags
+
+deploy:crates-io:
+  <<: *rust_template
+  stage: deploy
+  script:
+    - cargo publish --token ${CRATES_IO_TOKEN}
+  only:
+    - tags
+  when: manual
+</example>
+
+## Security Standards (Rust)
+
+### cargo-deny Configuration
+
+<example>
+# deny.toml
+[advisories]
+vulnerability = "deny"
+unmaintained = "warn"
+yanked = "deny"
+notice = "warn"
+
+[licenses]
+unlicensed = "deny"
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-3-Clause",
+    "ISC",
+]
+deny = [
+    "GPL-2.0",
+    "GPL-3.0",
+    "AGPL-3.0",
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-git = []
+</example>
+
+### Secure Coding Patterns
+
+<example>
+use std::path::{Path, PathBuf};
+use std::fs;
+
+/// Prevent path traversal attacks
+pub fn validate_safe_path(base: &Path, user_path: &str) -> Result<PathBuf> {
+    let path = base.join(user_path);
+    let canonical = path.canonicalize()
+        .map_err(|e| AppError::Validation {
+            field: "path".to_string(),
+            message: format!("Invalid path: {}", e),
+        })?;
+    
+    if !canonical.starts_with(base) {
+        return Err(AppError::Validation {
+            field: "path".to_string(),
+            message: "Path traversal detected".to_string(),
+        });
+    }
+    
+    Ok(canonical)
+}
+
+/// Input validation
+pub fn validate_username(username: &str) -> Result<&str> {
+    if username.is_empty() {
+        return Err(AppError::Validation {
+            field: "username".to_string(),
+            message: "Cannot be empty".to_string(),
+        });
+    }
+    
+    if username.len() > 50 {
+        return Err(AppError::Validation {
+            field: "username".to_string(),
+            message: "Too long (max 50 chars)".to_string(),
+        });
+    }
+    
+    if !username.chars().all(|c| c.is_alphanumeric() || c == '_') {
+        return Err(AppError::Validation {
+            field: "username".to_string(),
+            message: "Only alphanumeric and underscore allowed".to_string(),
+        });
+    }
+    
+    Ok(username)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+    
+    #[test]
+    fn test_path_traversal_prevention() {
+        let temp = TempDir::new().unwrap();
+        let base = temp.path();
+        
+        // Safe path
+        assert!(validate_safe_path(base, "subdir/file.txt").is_ok());
+        
+        // Path traversal attempts
+        assert!(validate_safe_path(base, "../etc/passwd").is_err());
+        assert!(validate_safe_path(base, "../../root").is_err());
+    }
+}
+</example>
+
+## Logging (tracing)
+
+### Structured Logging Setup
+
+<example>
+// src/logging.rs
+use tracing::{info, warn, error, debug};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+
+pub fn init_logging() {
+    tracing_subscriber::registry()
+        .with(EnvFilter::from_default_env())
+        .with(
+            tracing_subscriber::fmt::layer()
+                .json()
+                .with_current_span(true)
+                .with_span_list(true)
+        )
+        .init();
+}
+
+// Usage in application
+use tracing::{instrument, info, error};
+
+#[instrument]
+pub fn process_request(user_id: i32, request: &str) -> Result<Response> {
+    info!(user_id, request, "Processing request");
+    
+    match do_processing(user_id, request) {
+        Ok(response) => {
+            info!(user_id, "Request processed successfully");
+            Ok(response)
+        }
+        Err(e) => {
+            error!(user_id, error = %e, "Request processing failed");
+            Err(e)
+        }
+    }
+}
+</example>
+
+## Performance Benchmarking (Criterion)
+
+### Benchmark Setup
+
+<example>
+// benches/benchmark.rs
+use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use myproject::*;
+
+fn benchmark_double_value(c: &mut Criterion) {
+    c.bench_function("double_value", |b| {
+        b.iter(|| double_value(black_box(42)))
+    });
+}
+
+fn benchmark_processing_sizes(c: &mut Criterion) {
+    let mut group = c.benchmark_group("process_vector");
+    
+    for size in [100, 1000, 10000].iter() {
+        let data: Vec<i32> = (0..*size).collect();
+        
+        group.bench_with_input(BenchmarkId::from_parameter(size), &data, |b, data| {
+            b.iter(|| process_vector(black_box(data.clone())))
+        });
+    }
+    
+    group.finish();
+}
+
+criterion_group!(benches, benchmark_double_value, benchmark_processing_sizes);
+criterion_main!(benches);
+</example>
+
+### Running Benchmarks
+
+<example language="bash">
+# Run benchmarks
+cargo bench
+
+# Run specific benchmark
+cargo bench -- double_value
+
+# Generate detailed report
+cargo bench -- --save-baseline before
+# Make changes...
+cargo bench -- --baseline before
+</example>
+
+## Documentation (rustdoc)
+
+### Documentation Comments
+
+<example>
+/// Configuration for the application
+///
+/// # Examples
+///
+/// ```
+/// use myproject::Config;
+///
+/// let config = Config::new("config.json")?;
+/// assert_eq!(config.version, "1.0.0");
+/// ```
+///
+/// # Errors
+///
+/// Returns `AppError::Config` if the configuration file cannot be read
+/// or parsed.
+///
+/// # Panics
+///
+/// This function does not panic.
+pub struct Config {
+    /// Application version
+    pub version: String,
+    /// Server host
+    pub host: String,
+    /// Server port
+    pub port: u16,
+}
+
+impl Config {
+    /// Creates a new configuration from a file
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Path to the configuration file
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use myproject::Config;
+    /// let config = Config::new("config.json")?;
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn new(path: &str) -> Result<Self> {
+        // Implementation
+    }
+}
+</example>
+
+## Async/Await Patterns (Tokio)
+
+### Async Best Practices
+
+<example>
+use tokio::time::{sleep, Duration};
+use futures::future::join_all;
+
+/// Retry with exponential backoff
+pub async fn retry_with_backoff<F, Fut, T>(
+    mut operation: F,
+    max_attempts: u32,
+    initial_delay: Duration,
+) -> Result<T>
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = Result<T>>,
+{
+    let mut delay = initial_delay;
+    
+    for attempt in 1..=max_attempts {
+        match operation().await {
+            Ok(result) => return Ok(result),
+            Err(e) if attempt == max_attempts => return Err(e),
+            Err(e) => {
+                tracing::warn!(
+                    attempt,
+                    max_attempts,
+                    ?delay,
+                    error = %e,
+                    "Operation failed, retrying"
+                );
+                sleep(delay).await;
+                delay *= 2;
+            }
+        }
+    }
+    
+    unreachable!()
+}
+
+/// Parallel processing with concurrency limit
+pub async fn process_parallel<T, F, Fut>(
+    items: Vec<T>,
+    max_concurrent: usize,
+    mut process_fn: F,
+) -> Vec<Result<()>>
+where
+    F: FnMut(T) -> Fut,
+    Fut: Future<Output = Result<()>>,
+{
+    use futures::stream::{self, StreamExt};
+    
+    stream::iter(items)
+        .map(|item| process_fn(item))
+        .buffer_unordered(max_concurrent)
+        .collect()
+        .await
+}
+</example>
+
+## Release Checklist (Rust)
+
+- [ ] All tests pass (`cargo test`)
+- [ ] All benchmarks run (`cargo bench`)
+- [ ] Code formatted (`cargo fmt`)
+- [ ] No Clippy warnings (`cargo clippy -- -D warnings`)
+- [ ] Documentation builds (`cargo doc --no-deps`)
+- [ ] No security vulnerabilities (`cargo audit`)
+- [ ] License compliance (`cargo deny check`)
+- [ ] Coverage >80% (`cargo tarpaulin`)
+- [ ] VERSION file updated
+- [ ] Cargo.toml version updated
+- [ ] CHANGELOG.md updated
+- [ ] Git tagged (`git tag v1.0.0`)
+- [ ] CI/CD pipeline green
+
+## Summary: Rust Enterprise Features
+
+| Feature | Tool/Crate |
+|---------|-----------|
+| **Build System** | Cargo |
+| **Testing** | Built-in + proptest |
+| **Coverage** | cargo-tarpaulin |
+| **Linting** | Clippy |
+| **Formatting** | rustfmt |
+| **Documentation** | rustdoc |
+| **Security Audit** | cargo-audit + cargo-deny |
+| **Benchmarking** | Criterion |
+| **Logging** | tracing |
+| **Error Handling** | thiserror + anyhow |
+| **Async Runtime** | Tokio |
+| **Mocking** | mockall |

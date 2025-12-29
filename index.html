@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta
+      name="description"
+      content="Track your daily walks and visualize progress on a virtual journey"
+    />
+    <meta name="theme-color" content="#667eea" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="WalkJourney" />
+    <link rel="manifest" href="manifest.json" />
+    <title>Virtual Walking Journey</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css"
+    />
+    <link rel="stylesheet" href="style.css" />
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>🚶 Virtual Walking Journey</h1>
+        <p class="subtitle" id="routeSubtitle">Walk Your Way Anywhere!</p>
+      </header>
+
+      <!-- Route Setup Section -->
+      <div class="setup-section" id="setupSection" style="display: none">
+        <div class="setup-content">
+          <h2>🗺️ Setup Your Virtual Journey</h2>
+          <p>Choose where you want to start and end your virtual walking journey!</p>
+
+          <form id="setupForm">
+            <div class="form-group">
+              <label for="startLocation">Starting Location</label>
+              <input
+                type="text"
+                id="startLocation"
+                placeholder="e.g., Kanyakumari, Tamil Nadu"
+                required
+              />
+              <small>Enter city name, landmark, or address</small>
+            </div>
+
+            <div class="form-group">
+              <label for="endLocation">Destination</label>
+              <input type="text" id="endLocation" placeholder="e.g., Leh, Ladakh" required />
+              <small>Enter city name, landmark, or address</small>
+            </div>
+
+            <div class="quick-routes">
+              <h3>Or choose a popular route:</h3>
+              <div class="route-buttons">
+                <button
+                  type="button"
+                  class="route-btn"
+                  onclick="setQuickRoute('Kanyakumari, Tamil Nadu', 'Leh, Ladakh')"
+                >
+                  🏔️ Kanyakumari to Leh
+                </button>
+                <button
+                  type="button"
+                  class="route-btn"
+                  onclick="setQuickRoute('Mumbai, Maharashtra', 'Delhi')"
+                >
+                  🏙️ Mumbai to Delhi
+                </button>
+                <button
+                  type="button"
+                  class="route-btn"
+                  onclick="setQuickRoute('Chennai, Tamil Nadu', 'Kolkata, West Bengal')"
+                >
+                  🌊 Chennai to Kolkata
+                </button>
+                <button
+                  type="button"
+                  class="route-btn"
+                  onclick="setQuickRoute('Bangalore, Karnataka', 'Goa')"
+                >
+                  🏖️ Bangalore to Goa
+                </button>
+              </div>
+            </div>
+
+            <button type="submit" class="btn-primary">Start My Journey</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="main-content">
+        <!-- Cloud Sync Section -->
+        <div class="sync-section">
+          <div class="sync-header">
+            <div class="sync-info">
+              <span style="font-weight: bold">☁️ Cloud Sync</span>
+              <span id="userEmail" style="font-size: 0.85em; color: #666">Not signed in</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px">
+              <span id="syncStatus" style="font-size: 0.85em; color: #666">Not syncing</span>
+              <button id="syncButton" class="btn-sync">☁️ Sign In to Sync</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="route-controls">
+          <button id="changeRouteBtn" class="btn-change-route">Change Route</button>
+        </div>
+
+        <!-- Stats Section -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon">📊</div>
+            <div class="stat-value" id="totalDistance">0</div>
+            <div class="stat-label">Total Distance (km)</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">🎯</div>
+            <div class="stat-value" id="remainingDistance">3865</div>
+            <div class="stat-label">Remaining (km)</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">📍</div>
+            <div class="stat-value" id="currentLocation">Not Started</div>
+            <div class="stat-label">Current Location</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">⚡</div>
+            <div class="stat-value" id="progressPercent">0%</div>
+            <div class="stat-label">Progress</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">🗺️</div>
+            <div class="stat-value" id="routeInfo">-</div>
+            <div class="stat-label">Your Route</div>
+          </div>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="progress-container">
+          <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+          </div>
+        </div>
+
+        <!-- Map Section -->
+        <div class="map-section">
+          <div id="map"></div>
+
+          <!-- Nearby Places Section -->
+          <div
+            class="nearby-places"
+            id="nearbyPlaces"
+            style="
+              margin-top: 15px;
+              padding: 15px;
+              background: #f8f9fa;
+              border-radius: 10px;
+              display: none;
+            "
+          >
+            <div
+              style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 10px;
+              "
+            >
+              <h3 style="margin: 0; color: #333; font-size: 1.1em">
+                🗺️ Interesting Places Within 20km
+              </h3>
+              <button
+                id="refreshPlaces"
+                class="btn-secondary"
+                style="padding: 5px 12px; font-size: 0.85em"
+              >
+                Refresh
+              </button>
+            </div>
+            <div id="placesList" style="font-size: 0.9em"></div>
+          </div>
+        </div>
+
+        <!-- Input Section -->
+        <div class="input-section">
+          <h2>Log Today's Walk</h2>
+          <form id="walkForm">
+            <div class="form-group">
+              <label for="distance">Distance Walked (km)</label>
+              <input
+                type="number"
+                id="distance"
+                step="0.1"
+                min="0"
+                placeholder="Enter distance in km"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="date">Date</label>
+              <input type="date" id="date" required />
+            </div>
+            <div class="form-group">
+              <label for="notes">Notes (optional)</label>
+              <textarea id="notes" rows="2" placeholder="How did you feel today?"></textarea>
+            </div>
+            <button type="submit" class="btn-primary">Add Walk Entry</button>
+          </form>
+
+          <div class="bulk-import-section">
+            <button
+              id="toggleBulkImport"
+              class="btn-secondary"
+              style="width: 100%; margin-top: 15px"
+            >
+              📊 Bulk Import Walks
+            </button>
+            <div
+              id="bulkImportForm"
+              style="
+                display: none;
+                margin-top: 20px;
+                padding: 20px;
+                background: white;
+                border-radius: 10px;
+                border: 2px solid #e0e0e0;
+              "
+            >
+              <h3 style="margin-bottom: 15px">Import Multiple Walks</h3>
+              <p style="color: #666; font-size: 0.9em; margin-bottom: 15px">
+                Enter one walk per line in format: <code>YYYY-MM-DD, distance_in_km, notes</code>
+              </p>
+              <textarea
+                id="bulkImportData"
+                rows="8"
+                placeholder="Example:&#10;2024-12-22, 5.5, Evening walk&#10;2024-12-23, 6.2, Morning jog&#10;2024-12-24, 4.8"
+                style="
+                  width: 100%;
+                  padding: 12px;
+                  border: 2px solid #e0e0e0;
+                  border-radius: 8px;
+                  font-family: monospace;
+                  font-size: 0.9em;
+                "
+              ></textarea>
+              <div style="display: flex; gap: 10px; margin-top: 15px">
+                <button id="importWalks" class="btn-primary" style="flex: 1">Import Walks</button>
+                <button id="cancelImport" class="btn-secondary" style="flex: 1">Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- History Section -->
+        <div class="history-section">
+          <div class="history-header">
+            <h2>Walking History</h2>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap">
+              <button id="exportData" class="btn-secondary" style="background: #10b981">
+                📤 Export Data
+              </button>
+              <button id="importData" class="btn-secondary" style="background: #3b82f6">
+                📥 Import Data
+              </button>
+              <button id="clearHistory" class="btn-secondary">Clear All Data</button>
+            </div>
+          </div>
+          <div id="historyList" class="history-list"></div>
+        </div>
+
+        <!-- Hidden file input for import -->
+        <input type="file" id="fileInput" accept=".json" style="display: none" />
+
+        <!-- Sync Info Box -->
+        <div
+          style="
+            margin-top: 20px;
+            padding: 15px;
+            background: #e0f2fe;
+            border-radius: 10px;
+            border-left: 4px solid #3b82f6;
+          "
+        >
+          <h4 style="margin: 0 0 10px 0; color: #0369a1">💡 Sync Between Devices</h4>
+          <p style="margin: 0; font-size: 0.85em; color: #075985">
+            <strong>Export</strong> on one device → <strong>Import</strong> on another device to
+            sync your walking data! Your route and all walks will be transferred.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+    <script src="logger.js"></script>
+    <script src="firebase-sync.js"></script>
+    <script src="app.js"></script>
+    <script>
+      // Register service worker for PWA
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker
+            .register('sw.js')
+            .then((reg) => logger.info('Service Worker registered', { scope: reg.scope }))
+            .catch((err) =>
+              logger.error('Service Worker registration failed', { error: err.message })
+            );
+        });
+      }
+    </script>
+  </body>
+</html>

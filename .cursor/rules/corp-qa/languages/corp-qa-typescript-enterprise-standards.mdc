@@ -1,0 +1,752 @@
+---
+title: "Corp QA Enterprise Standards - TypeScript"
+description: "Enterprise-grade TypeScript development standards for scalable, production-ready systems"
+tags:
+  - typescript
+  - nodejs
+  - enterprise
+  - qa
+  - scalability
+  - corp-qa
+team: corp-qa
+language: typescript
+alwaysApply: true
+---
+
+# Corp QA Enterprise Standards - TypeScript
+
+## TypeScript-Specific Enterprise Rules
+
+- ALWAYS use TypeScript 5.0 or later
+- ALWAYS enable strict mode in tsconfig.json
+- ALWAYS use ESLint with TypeScript plugin
+- ALWAYS use Prettier for code formatting
+- ALWAYS define explicit return types for functions
+- ALWAYS use interfaces for public APIs
+- ALWAYS handle Promise rejections
+- NEVER use `any` type (use `unknown` instead)
+- NEVER disable TypeScript checks with `@ts-ignore`
+- ALWAYS use Jest for testing
+
+## Project Structure
+
+```
+my-ts-project/
+├── package.json               # Project manifest
+├── package-lock.json          # Dependency lock
+├── tsconfig.json              # TypeScript configuration
+├── tsconfig.build.json        # Build-specific TS config
+├── .eslintrc.js              # ESLint configuration
+├── .prettierrc               # Prettier configuration
+├── jest.config.ts            # Jest configuration
+├── .gitlab-ci.yml            # CI/CD pipeline
+├── README.md                  # Project documentation
+├── CHANGELOG.md               # Version history
+├── VERSION                    # Semantic version
+├── CONTRIBUTING.md            # Contribution guidelines
+├── SECURITY.md                # Security policy
+│
+├── src/
+│   ├── index.ts              # Main entry point
+│   ├── types/                # Type definitions
+│   │   └── user.ts
+│   ├── services/             # Business logic
+│   │   └── userService.ts
+│   ├── controllers/          # API controllers
+│   │   └── userController.ts
+│   ├── models/               # Data models
+│   │   └── user.ts
+│   ├── utils/                # Utility functions
+│   │   └── validator.ts
+│   └── config/               # Configuration
+│       └── database.ts
+│
+├── tests/                     # Test files
+│   ├── unit/
+│   │   └── userService.test.ts
+│   ├── integration/
+│   │   └── api.test.ts
+│   └── e2e/
+│       └── workflow.test.ts
+│
+├── dist/                      # Build output (gitignored)
+├── coverage/                  # Coverage reports (gitignored)
+│
+└── docs/                      # Documentation
+    └── ARCHITECTURE.md
+```
+
+## package.json Configuration
+
+### Enterprise package.json
+
+<example>
+{
+  "name": "myproject",
+  "version": "1.0.0",
+  "description": "Enterprise-grade TypeScript project",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.build.json",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "start": "node dist/index.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist coverage",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["enterprise", "typescript", "production"],
+  "author": "Your Name <your.email@nvidia.com>",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "zod": "^3.22.4",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/jest": "^29.5.11",
+    "@types/node": "^20.10.6",
+    "@typescript-eslint/eslint-plugin": "^6.17.0",
+    "@typescript-eslint/parser": "^6.17.0",
+    "eslint": "^8.56.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.29.1",
+    "jest": "^29.7.0",
+    "prettier": "^3.1.1",
+    "ts-jest": "^29.1.1",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.3.3"
+  }
+}
+</example>
+
+## tsconfig.json Configuration
+
+### Strict TypeScript Configuration
+
+<example>
+{
+  "compilerOptions": {
+    /* Language and Environment */
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "commonjs",
+    "moduleResolution": "node",
+    
+    /* Strict Type-Checking Options */
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitThis": true,
+    "alwaysStrict": true,
+    
+    /* Additional Checks */
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    
+    /* Module Resolution Options */
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    
+    /* Emit Options */
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "removeComments": true,
+    "skipLibCheck": true,
+    
+    /* Advanced Options */
+    "forceConsistentCasingInFileNames": true,
+    "allowUnusedLabels": false,
+    "allowUnreachableCode": false
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "coverage", "**/*.test.ts"]
+}
+</example>
+
+## ESLint Configuration
+
+### .eslintrc.js
+
+<example>
+module.exports = {
+  root: true,
+  parser: '@typescript-eslint/parser',
+  parserOptions: {
+    ecmaVersion: 2022,
+    sourceType: 'module',
+    project: './tsconfig.json',
+  },
+  plugins: ['@typescript-eslint', 'import'],
+  extends: [
+    'eslint:recommended',
+    'plugin:@typescript-eslint/recommended',
+    'plugin:@typescript-eslint/recommended-requiring-type-checking',
+    'plugin:import/recommended',
+    'plugin:import/typescript',
+    'prettier',
+  ],
+  rules: {
+    // TypeScript-specific rules
+    '@typescript-eslint/explicit-function-return-type': 'error',
+    '@typescript-eslint/no-explicit-any': 'error',
+    '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+    '@typescript-eslint/no-floating-promises': 'error',
+    '@typescript-eslint/no-misused-promises': 'error',
+    '@typescript-eslint/await-thenable': 'error',
+    '@typescript-eslint/require-await': 'error',
+    '@typescript-eslint/no-unnecessary-type-assertion': 'error',
+    '@typescript-eslint/prefer-nullish-coalescing': 'error',
+    '@typescript-eslint/prefer-optional-chain': 'error',
+    '@typescript-eslint/strict-boolean-expressions': 'error',
+    
+    // Import rules
+    'import/order': [
+      'error',
+      {
+        groups: ['builtin', 'external', 'internal', 'parent', 'sibling', 'index'],
+        'newlines-between': 'always',
+        alphabetize: { order: 'asc', caseInsensitive: true },
+      },
+    ],
+    
+    // General rules
+    'no-console': ['warn', { allow: ['warn', 'error'] }],
+    'no-debugger': 'error',
+    'prefer-const': 'error',
+    'no-var': 'error',
+  },
+};
+</example>
+
+## Type Safety Patterns
+
+### Type Definitions
+
+<example>
+// src/types/user.ts
+
+// GOOD: Explicit interfaces
+export interface User {
+  readonly id: number;
+  name: string;
+  email: string;
+  role: UserRole;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// GOOD: Enum for fixed values
+export enum UserRole {
+  Admin = 'ADMIN',
+  User = 'USER',
+  Guest = 'GUEST',
+}
+
+// GOOD: Discriminated unions
+export type ApiResponse<T> =
+  | { success: true; data: T }
+  | { success: false; error: string };
+
+// GOOD: Utility types
+export type CreateUserDto = Omit<User, 'id' | 'createdAt' | 'updatedAt'>;
+export type UpdateUserDto = Partial<CreateUserDto>;
+
+// GOOD: Type guards
+export function isUser(value: unknown): value is User {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'id' in value &&
+    'name' in value &&
+    'email' in value
+  );
+}
+
+// BAD: Using any
+function badExample(data: any): any {  // ❌ NEVER USE any
+  return data.whatever;
+}
+
+// GOOD: Using unknown
+function goodExample(data: unknown): string {
+  if (typeof data === 'string') {
+    return data;
+  }
+  throw new Error('Expected string');
+}
+</example>
+
+### Error Handling
+
+<example>
+// src/utils/errors.ts
+
+export class AppError extends Error {
+  constructor(
+    message: string,
+    public readonly code: string,
+    public readonly statusCode: number = 500,
+    public readonly isOperational: boolean = true
+  ) {
+    super(message);
+    this.name = this.constructor.name;
+    Error.captureStackTrace(this, this.constructor);
+  }
+}
+
+export class ValidationError extends AppError {
+  constructor(message: string) {
+    super(message, 'VALIDATION_ERROR', 400);
+  }
+}
+
+export class NotFoundError extends AppError {
+  constructor(resource: string) {
+    super(`${resource} not found`, 'NOT_FOUND', 404);
+  }
+}
+
+// Error handling with proper types
+export async function handleAsync<T>(
+  promise: Promise<T>
+): Promise<[null, T] | [Error, null]> {
+  try {
+    const data = await promise;
+    return [null, data];
+  } catch (error) {
+    if (error instanceof Error) {
+      return [error, null];
+    }
+    return [new Error('Unknown error'), null];
+  }
+}
+
+// Usage
+async function getUserSafely(id: number): Promise<User | null> {
+  const [error, user] = await handleAsync(userService.getUser(id));
+  
+  if (error) {
+    console.error('Failed to get user:', error);
+    return null;
+  }
+  
+  return user;
+}
+</example>
+
+## Testing Standards (Jest)
+
+### jest.config.ts
+
+<example>
+import type { Config } from 'jest';
+
+const config: Config = {
+  preset: 'ts-jest',
+  testEnvironment: 'node',
+  roots: ['<rootDir>/tests'],
+  testMatch: ['**/__tests__/**/*.ts', '**/?(*.)+(spec|test).ts'],
+  transform: {
+    '^.+\\.ts$': 'ts-jest',
+  },
+  collectCoverageFrom: [
+    'src/**/*.ts',
+    '!src/**/*.d.ts',
+    '!src/**/*.test.ts',
+    '!src/**/index.ts',
+  ],
+  coverageThreshold: {
+    global: {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80,
+    },
+  },
+  coverageReporters: ['text', 'lcov', 'html'],
+  verbose: true,
+};
+
+export default config;
+</example>
+
+### Unit Tests
+
+<example>
+// tests/unit/userService.test.ts
+import { UserService } from '../../src/services/userService';
+import { UserRepository } from '../../src/repositories/userRepository';
+import { NotFoundError } from '../../src/utils/errors';
+
+// Mock the repository
+jest.mock('../../src/repositories/userRepository');
+
+describe('UserService', () => {
+  let userService: UserService;
+  let mockRepository: jest.Mocked<UserRepository>;
+
+  beforeEach(() => {
+    mockRepository = new UserRepository() as jest.Mocked<UserRepository>;
+    userService = new UserService(mockRepository);
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('getUser', () => {
+    it('should return user when found', async () => {
+      // Arrange
+      const userId = 42;
+      const expectedUser = {
+        id: userId,
+        name: 'Test User',
+        email: 'test@example.com',
+        role: UserRole.User,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      mockRepository.findById.mockResolvedValue(expectedUser);
+
+      // Act
+      const result = await userService.getUser(userId);
+
+      // Assert
+      expect(result).toEqual(expectedUser);
+      expect(mockRepository.findById).toHaveBeenCalledWith(userId);
+      expect(mockRepository.findById).toHaveBeenCalledTimes(1);
+    });
+
+    it('should throw NotFoundError when user not found', async () => {
+      // Arrange
+      const userId = 999;
+      mockRepository.findById.mockResolvedValue(null);
+
+      // Act & Assert
+      await expect(userService.getUser(userId)).rejects.toThrow(NotFoundError);
+      await expect(userService.getUser(userId)).rejects.toThrow('User not found');
+    });
+
+    it.each([
+      [0, 'Invalid user ID'],
+      [-1, 'Invalid user ID'],
+      [-100, 'Invalid user ID'],
+    ])('should throw ValidationError for invalid ID: %i', async (userId, expectedMessage) => {
+      await expect(userService.getUser(userId)).rejects.toThrow(expectedMessage);
+    });
+  });
+});
+</example>
+
+### Integration Tests
+
+<example>
+// tests/integration/api.test.ts
+import request from 'supertest';
+import { app } from '../../src/app';
+import { User, UserRole } from '../../src/types/user';
+
+describe('User API Integration Tests', () => {
+  describe('GET /api/users/:id', () => {
+    it('should return user when exists', async () => {
+      const response = await request(app)
+        .get('/api/users/1')
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        id: 1,
+        name: expect.any(String),
+        email: expect.stringMatching(/^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/),
+      });
+    });
+
+    it('should return 404 when user not found', async () => {
+      await request(app)
+        .get('/api/users/9999')
+        .expect(404)
+        .expect((res) => {
+          expect(res.body).toHaveProperty('error');
+        });
+    });
+  });
+
+  describe('POST /api/users', () => {
+    it('should create new user', async () => {
+      const newUser = {
+        name: 'New User',
+        email: 'new@example.com',
+        role: UserRole.User,
+      };
+
+      const response = await request(app)
+        .post('/api/users')
+        .send(newUser)
+        .expect(201);
+
+      expect(response.body).toMatchObject({
+        id: expect.any(Number),
+        ...newUser,
+      });
+    });
+  });
+});
+</example>
+
+## CI/CD Pipeline (GitLab)
+
+### .gitlab-ci.yml for TypeScript
+
+<example>
+# .gitlab-ci.yml
+stages:
+  - lint
+  - test
+  - build
+  - deploy
+
+variables:
+  NODE_VERSION: "18"
+  NPM_CONFIG_CACHE: "$CI_PROJECT_DIR/.npm"
+
+cache:
+  key: "$CI_COMMIT_REF_SLUG"
+  paths:
+    - .npm/
+    - node_modules/
+
+.node_job: &node_template
+  image: node:${NODE_VERSION}
+  before_script:
+    - node --version
+    - npm --version
+    - npm ci
+
+lint:eslint:
+  <<: *node_template
+  stage: lint
+  script:
+    - npm run lint
+
+lint:format:
+  <<: *node_template
+  stage: lint
+  script:
+    - npm run format:check
+
+lint:types:
+  <<: *node_template
+  stage: lint
+  script:
+    - npm run type-check
+
+test:unit:
+  <<: *node_template
+  stage: test
+  script:
+    - npm run test:coverage
+  coverage: '/All files[^|]*\|[^|]*\s+([\d\.]+)/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage/cobertura-coverage.xml
+    paths:
+      - coverage/
+    expire_in: 30 days
+
+test:integration:
+  <<: *node_template
+  stage: test
+  script:
+    - npm run test -- --testPathPattern=integration
+
+build:
+  <<: *node_template
+  stage: build
+  script:
+    - npm run build
+    - npm pack
+  artifacts:
+    paths:
+      - dist/
+      - "*.tgz"
+    expire_in: 7 days
+  only:
+    - main
+    - tags
+
+deploy:npm:
+  <<: *node_template
+  stage: deploy
+  script:
+    - echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc
+    - npm publish
+  only:
+    - tags
+  when: manual
+</example>
+
+## Async/Await Best Practices
+
+### Promise Handling
+
+<example>
+// GOOD: Proper error handling
+export async function fetchUserData(userId: number): Promise<User> {
+  try {
+    const response = await fetch(`/api/users/${userId}`);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data: unknown = await response.json();
+    
+    if (!isUser(data)) {
+      throw new ValidationError('Invalid user data');
+    }
+    
+    return data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new AppError(`Failed to fetch user: ${error.message}`, 'FETCH_ERROR');
+    }
+    throw error;
+  }
+}
+
+// GOOD: Parallel execution
+export async function fetchMultipleUsers(ids: number[]): Promise<User[]> {
+  const promises = ids.map((id) => fetchUserData(id));
+  return Promise.all(promises);
+}
+
+// GOOD: Sequential execution when needed
+export async function processUsersSequentially(ids: number[]): Promise<void> {
+  for (const id of ids) {
+    await processUser(id);
+  }
+}
+
+// GOOD: Rate-limited parallel execution
+export async function fetchWithLimit(
+  ids: number[],
+  limit: number
+): Promise<User[]> {
+  const results: User[] = [];
+  
+  for (let i = 0; i < ids.length; i += limit) {
+    const batch = ids.slice(i, i + limit);
+    const batchResults = await Promise.all(batch.map(fetchUserData));
+    results.push(...batchResults);
+  }
+  
+  return results;
+}
+</example>
+
+## Logging (Winston)
+
+### Logger Configuration
+
+<example>
+// src/config/logger.ts
+import winston from 'winston';
+
+const levels = {
+  error: 0,
+  warn: 1,
+  info: 2,
+  http: 3,
+  debug: 4,
+};
+
+const level = (): string => {
+  const env = process.env.NODE_ENV || 'development';
+  return env === 'development' ? 'debug' : 'info';
+};
+
+const format = winston.format.combine(
+  winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss:ms' }),
+  winston.format.errors({ stack: true }),
+  winston.format.json()
+);
+
+const transports = [
+  new winston.transports.Console({
+    format: winston.format.combine(
+      winston.format.colorize(),
+      winston.format.printf(
+        (info) => `${info.timestamp} ${info.level}: ${info.message}`
+      )
+    ),
+  }),
+  new winston.transports.File({
+    filename: 'logs/error.log',
+    level: 'error',
+  }),
+  new winston.transports.File({ filename: 'logs/all.log' }),
+];
+
+export const logger = winston.createLogger({
+  level: level(),
+  levels,
+  format,
+  transports,
+});
+</example>
+
+## Release Checklist (TypeScript)
+
+- [ ] All tests pass (`npm test`)
+- [ ] Coverage >80% (`npm run test:coverage`)
+- [ ] No ESLint errors (`npm run lint`)
+- [ ] Code formatted (`npm run format:check`)
+- [ ] Type checking passes (`npm run type-check`)
+- [ ] Build succeeds (`npm run build`)
+- [ ] Dependencies up-to-date (`npm outdated`)
+- [ ] VERSION file updated
+- [ ] package.json version updated
+- [ ] CHANGELOG.md updated
+- [ ] Git tagged (`git tag v1.0.0`)
+- [ ] CI/CD pipeline green
+
+## Summary: TypeScript Enterprise Tools
+
+| Feature | Tool |
+|---------|------|
+| **Build System** | TypeScript Compiler (tsc) |
+| **Testing** | Jest |
+| **Coverage** | Jest --coverage |
+| **Linting** | ESLint + TypeScript plugin |
+| **Formatting** | Prettier |
+| **Type Checking** | TypeScript |
+| **Documentation** | TypeDoc |
+| **Logging** | Winston / Pino |
+| **Package Manager** | npm / pnpm / yarn |

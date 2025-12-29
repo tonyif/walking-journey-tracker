@@ -1,0 +1,824 @@
+---
+title: "Corp QA Enterprise Standards - Golang"
+description: "Enterprise-grade Go development standards for scalable, production-ready systems"
+tags:
+  - golang
+  - go
+  - enterprise
+  - qa
+  - scalability
+  - corp-qa
+team: corp-qa
+language: go
+alwaysApply: true
+---
+
+# Corp QA Enterprise Standards - Golang
+
+## Go-Specific Enterprise Rules
+
+- ALWAYS use Go 1.20 or later
+- ALWAYS use Go modules for dependency management
+- ALWAYS run `go fmt` and `goimports`
+- ALWAYS run `go vet` and `golangci-lint`
+- ALWAYS handle errors explicitly (never ignore)
+- ALWAYS use context.Context for cancelation
+- ALWAYS write table-driven tests
+- NEVER use `panic()` in library code
+- NEVER ignore `go vet` warnings
+- ALWAYS use `go mod tidy` before commits
+
+## Project Structure
+
+```
+my-go-project/
+├── go.mod                     # Module definition
+├── go.sum                     # Dependency checksums
+├── README.md                  # Project documentation
+├── CHANGELOG.md               # Version history
+├── VERSION                    # Semantic version
+├── CONTRIBUTING.md            # Contribution guidelines
+├── SECURITY.md                # Security policy
+├── Makefile                   # Build automation
+├── .gitlab-ci.yml            # CI/CD pipeline
+├── .golangci.yml             # Linter configuration
+│
+├── cmd/
+│   └── myapp/
+│       └── main.go           # Application entry point
+│
+├── internal/                  # Private application code
+│   ├── config/
+│   │   └── config.go
+│   ├── handler/
+│   │   └── user.go
+│   ├── service/
+│   │   └── user.go
+│   └── repository/
+│       └── user.go
+│
+├── pkg/                       # Public library code
+│   ├── api/
+│   │   └── types.go
+│   └── utils/
+│       └── validator.go
+│
+├── test/                      # Integration/E2E tests
+│   ├── integration/
+│   │   └── user_test.go
+│   └── e2e/
+│       └── workflow_test.go
+│
+├── scripts/                   # Build/test scripts
+│   ├── build.sh
+│   ├── test.sh
+│   └── lint.sh
+│
+└── docs/                      # Documentation
+    └── ARCHITECTURE.md
+```
+
+## go.mod Configuration
+
+### Enterprise go.mod
+
+<example>
+module github.com/nvidia/myproject
+
+go 1.21
+
+require (
+    github.com/gin-gonic/gin v1.9.1
+    github.com/spf13/cobra v1.8.0
+    github.com/spf13/viper v1.18.2
+    go.uber.org/zap v1.26.0
+    golang.org/x/sync v0.5.0
+)
+
+require (
+    // Indirect dependencies
+)
+</example>
+
+## Version Management (Go)
+
+### Makefile with Version
+
+<example>
+# Makefile
+VERSION := $(shell cat VERSION)
+BINARY_NAME := myapp
+BUILD_DIR := bin
+GO_FILES := $(shell find . -type f -name '*.go' -not -path "./vendor/*")
+
+# Build flags
+LDFLAGS := -ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(shell date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+.PHONY: all build test lint clean version
+
+all: lint test build
+
+build:
+	@echo "Building $(BINARY_NAME) v$(VERSION)..."
+	@mkdir -p $(BUILD_DIR)
+	go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/myapp
+
+test:
+	@echo "Running tests..."
+	go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+	go tool cover -html=coverage.out -o coverage.html
+
+lint:
+	@echo "Running linters..."
+	go fmt ./...
+	go vet ./...
+	golangci-lint run
+
+clean:
+	@echo "Cleaning..."
+	rm -rf $(BUILD_DIR)
+	rm -f coverage.out coverage.html
+
+version:
+	@echo $(VERSION)
+
+install-tools:
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	go install golang.org/x/tools/cmd/goimports@latest
+</example>
+
+### Version in main.go
+
+<example>
+// cmd/myapp/main.go
+package main
+
+import (
+    "fmt"
+    "os"
+)
+
+var (
+    // Set by build flags
+    Version   = "dev"
+    BuildTime = "unknown"
+)
+
+func main() {
+    if len(os.Args) > 1 && os.Args[1] == "version" {
+        fmt.Printf("%s version %s (built %s)\n", os.Args[0], Version, BuildTime)
+        return
+    }
+    
+    // Application logic
+}
+</example>
+
+## Error Handling (Best Practices)
+
+### Custom Error Types
+
+<example>
+// pkg/errors/errors.go
+package errors
+
+import (
+    "errors"
+    "fmt"
+)
+
+// Common error types
+var (
+    ErrNotFound     = errors.New("resource not found")
+    ErrUnauthorized = errors.New("unauthorized access")
+    ErrInvalidInput = errors.New("invalid input")
+)
+
+// AppError represents an application-specific error
+type AppError struct {
+    Code    string
+    Message string
+    Err     error
+}
+
+func (e *AppError) Error() string {
+    if e.Err != nil {
+        return fmt.Sprintf("%s: %s: %v", e.Code, e.Message, e.Err)
+    }
+    return fmt.Sprintf("%s: %s", e.Code, e.Message)
+}
+
+func (e *AppError) Unwrap() error {
+    return e.Err
+}
+
+// New creates a new AppError
+func New(code, message string) *AppError {
+    return &AppError{
+        Code:    code,
+        Message: message,
+    }
+}
+
+// Wrap wraps an existing error
+func Wrap(err error, code, message string) *AppError {
+    return &AppError{
+        Code:    code,
+        Message: message,
+        Err:     err,
+    }
+}
+</example>
+
+### Error Handling Patterns
+
+<example>
+package service
+
+import (
+    "context"
+    "fmt"
+    
+    "github.com/nvidia/myproject/pkg/errors"
+)
+
+type UserService struct {
+    repo UserRepository
+}
+
+// GOOD: Explicit error handling
+func (s *UserService) GetUser(ctx context.Context, id int) (*User, error) {
+    if id <= 0 {
+        return nil, errors.New("INVALID_ID", "user ID must be positive")
+    }
+    
+    user, err := s.repo.FindByID(ctx, id)
+    if err != nil {
+        return nil, errors.Wrap(err, "DB_ERROR", "failed to fetch user")
+    }
+    
+    if user == nil {
+        return nil, errors.ErrNotFound
+    }
+    
+    return user, nil
+}
+
+// GOOD: Error checking with errors.Is and errors.As
+func (s *UserService) UpdateUser(ctx context.Context, user *User) error {
+    err := s.validateUser(user)
+    if err != nil {
+        return fmt.Errorf("validation failed: %w", err)
+    }
+    
+    err = s.repo.Update(ctx, user)
+    if err != nil {
+        if errors.Is(err, errors.ErrNotFound) {
+            return fmt.Errorf("user not found: %w", err)
+        }
+        return fmt.Errorf("database error: %w", err)
+    }
+    
+    return nil
+}
+
+// BAD: Ignoring errors
+func badExample(id int) *User {
+    user, _ := getUserFromDB(id)  // ❌ DON'T IGNORE ERRORS
+    return user
+}
+</example>
+
+## Testing Standards (Go)
+
+### Table-Driven Tests
+
+<example>
+// internal/service/user_test.go
+package service
+
+import (
+    "context"
+    "testing"
+    
+    "github.com/stretchr/testify/assert"
+    "github.com/stretchr/testify/require"
+)
+
+func TestUserService_GetUser(t *testing.T) {
+    tests := []struct {
+        name    string
+        userID  int
+        want    *User
+        wantErr bool
+        errMsg  string
+    }{
+        {
+            name:   "valid user ID",
+            userID: 42,
+            want:   &User{ID: 42, Name: "Test User"},
+            wantErr: false,
+        },
+        {
+            name:    "invalid user ID (negative)",
+            userID:  -1,
+            want:    nil,
+            wantErr: true,
+            errMsg:  "user ID must be positive",
+        },
+        {
+            name:    "invalid user ID (zero)",
+            userID:  0,
+            want:    nil,
+            wantErr: true,
+            errMsg:  "user ID must be positive",
+        },
+        {
+            name:    "user not found",
+            userID:  999,
+            want:    nil,
+            wantErr: true,
+            errMsg:  "not found",
+        },
+    }
+    
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            // Arrange
+            ctx := context.Background()
+            service := setupTestService(t)
+            
+            // Act
+            got, err := service.GetUser(ctx, tt.userID)
+            
+            // Assert
+            if tt.wantErr {
+                require.Error(t, err)
+                assert.Contains(t, err.Error(), tt.errMsg)
+                return
+            }
+            
+            require.NoError(t, err)
+            assert.Equal(t, tt.want, got)
+        })
+    }
+}
+</example>
+
+### Mocking with testify/mock
+
+<example>
+// internal/service/user_test.go
+package service
+
+import (
+    "context"
+    "testing"
+    
+    "github.com/stretchr/testify/mock"
+    "github.com/stretchr/testify/require"
+)
+
+// MockUserRepository is a mock implementation
+type MockUserRepository struct {
+    mock.Mock
+}
+
+func (m *MockUserRepository) FindByID(ctx context.Context, id int) (*User, error) {
+    args := m.Called(ctx, id)
+    if args.Get(0) == nil {
+        return nil, args.Error(1)
+    }
+    return args.Get(0).(*User), args.Error(1)
+}
+
+func TestGetUser_WithMock(t *testing.T) {
+    // Arrange
+    ctx := context.Background()
+    mockRepo := new(MockUserRepository)
+    service := &UserService{repo: mockRepo}
+    
+    expectedUser := &User{ID: 42, Name: "Test User"}
+    mockRepo.On("FindByID", ctx, 42).Return(expectedUser, nil)
+    
+    // Act
+    user, err := service.GetUser(ctx, 42)
+    
+    // Assert
+    require.NoError(t, err)
+    require.Equal(t, expectedUser, user)
+    mockRepo.AssertExpectations(t)
+}
+</example>
+
+### Benchmarks
+
+<example>
+// internal/utils/hash_test.go
+package utils
+
+import (
+    "testing"
+)
+
+func BenchmarkHashPassword(b *testing.B) {
+    password := "test-password-123"
+    
+    b.ResetTimer()
+    for i := 0; i < b.N; i++ {
+        _ = HashPassword(password)
+    }
+}
+
+func BenchmarkHashPassword_Parallel(b *testing.B) {
+    password := "test-password-123"
+    
+    b.ResetTimer()
+    b.RunParallel(func(pb *testing.PB) {
+        for pb.Next() {
+            _ = HashPassword(password)
+        }
+    })
+}
+</example>
+
+## CI/CD Pipeline (GitLab)
+
+### .gitlab-ci.yml for Go
+
+<example>
+# .gitlab-ci.yml
+stages:
+  - lint
+  - test
+  - build
+  - deploy
+
+variables:
+  GO_VERSION: "1.21"
+  CGO_ENABLED: "0"
+
+.go_job: &go_template
+  image: golang:${GO_VERSION}
+  before_script:
+    - go version
+    - go mod download
+
+lint:format:
+  <<: *go_template
+  stage: lint
+  script:
+    - test -z "$(gofmt -l .)"
+    - go vet ./...
+
+lint:golangci:
+  <<: *go_template
+  stage: lint
+  before_script:
+    - go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+  script:
+    - golangci-lint run --timeout 5m
+
+test:unit:
+  <<: *go_template
+  stage: test
+  script:
+    - go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+    - go tool cover -func=coverage.out
+  coverage: '/total:\s+\(statements\)\s+(\d+\.\d+)%/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    paths:
+      - coverage.out
+      - coverage.html
+
+test:integration:
+  <<: *go_template
+  stage: test
+  script:
+    - go test -v -tags=integration ./test/integration/...
+
+build:linux:
+  <<: *go_template
+  stage: build
+  script:
+    - VERSION=$(cat VERSION)
+    - LDFLAGS="-X main.Version=$VERSION -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    - go build -ldflags="$LDFLAGS" -o bin/myapp ./cmd/myapp
+  artifacts:
+    paths:
+      - bin/
+    expire_in: 7 days
+  only:
+    - main
+    - tags
+
+build:docker:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA .
+    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+  only:
+    - main
+    - tags
+</example>
+
+## Code Quality (.golangci.yml)
+
+### golangci-lint Configuration
+
+<example>
+# .golangci.yml
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    - errcheck      # Check unchecked errors
+    - gosimple      # Simplify code
+    - govet         # Examine Go source code
+    - ineffassign   # Detect ineffectual assignments
+    - staticcheck   # Go vet on steroids
+    - typecheck     # Type checker
+    - unused        # Find unused code
+    - gosec         # Security problems
+    - gocyclo       # Cyclomatic complexity
+    - gofmt         # Format checking
+    - goimports     # Import organization
+    - misspell      # Spelling
+    - revive        # Fast linter
+    - stylecheck    # Style checker
+    - unconvert     # Unnecessary conversions
+    - unparam       # Unused function parameters
+    - nakedret      # Naked returns
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+  
+  gocyclo:
+    min-complexity: 15
+  
+  govet:
+    check-shadowing: true
+    enable-all: true
+  
+  staticcheck:
+    checks: ["all"]
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0
+</example>
+
+## Security Standards (Go)
+
+### Secure Coding Practices
+
+<example>
+package security
+
+import (
+    "crypto/rand"
+    "crypto/subtle"
+    "encoding/base64"
+    "errors"
+    "path/filepath"
+    "strings"
+    
+    "golang.org/x/crypto/bcrypt"
+)
+
+// HashPassword securely hashes a password using bcrypt
+func HashPassword(password string) (string, error) {
+    bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
+    return string(bytes), err
+}
+
+// CheckPasswordHash compares password with hash
+func CheckPasswordHash(password, hash string) bool {
+    err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+    return err == nil
+}
+
+// GenerateSecureToken generates a cryptographically secure random token
+func GenerateSecureToken(length int) (string, error) {
+    bytes := make([]byte, length)
+    if _, err := rand.Read(bytes); err != nil {
+        return "", err
+    }
+    return base64.URLEncoding.EncodeToString(bytes), nil
+}
+
+// SecureCompare performs constant-time string comparison
+func SecureCompare(a, b string) bool {
+    return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
+}
+
+// ValidatePath prevents path traversal attacks
+func ValidatePath(basePath, userPath string) (string, error) {
+    // Clean the user path
+    cleaned := filepath.Clean(userPath)
+    
+    // Join with base path
+    fullPath := filepath.Join(basePath, cleaned)
+    
+    // Ensure the path is within base directory
+    if !strings.HasPrefix(fullPath, basePath) {
+        return "", errors.New("path traversal detected")
+    }
+    
+    return fullPath, nil
+}
+
+// ValidateInput sanitizes and validates user input
+func ValidateInput(input string, maxLength int) error {
+    if len(input) == 0 {
+        return errors.New("input cannot be empty")
+    }
+    
+    if len(input) > maxLength {
+        return errors.New("input exceeds maximum length")
+    }
+    
+    // Additional validation logic
+    return nil
+}
+</example>
+
+## Structured Logging (zap)
+
+### Logging Setup
+
+<example>
+// internal/logger/logger.go
+package logger
+
+import (
+    "go.uber.org/zap"
+    "go.uber.org/zap/zapcore"
+)
+
+func NewLogger(env string) (*zap.Logger, error) {
+    var config zap.Config
+    
+    if env == "production" {
+        config = zap.NewProductionConfig()
+        config.EncoderConfig.TimeKey = "timestamp"
+        config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+    } else {
+        config = zap.NewDevelopmentConfig()
+        config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+    }
+    
+    config.OutputPaths = []string{"stdout", "./logs/app.log"}
+    config.ErrorOutputPaths = []string{"stderr", "./logs/error.log"}
+    
+    return config.Build()
+}
+</example>
+
+### Logging Usage
+
+<example>
+// internal/service/user.go
+package service
+
+import (
+    "context"
+    
+    "go.uber.org/zap"
+)
+
+type UserService struct {
+    repo   UserRepository
+    logger *zap.Logger
+}
+
+func (s *UserService) GetUser(ctx context.Context, id int) (*User, error) {
+    logger := s.logger.With(
+        zap.Int("user_id", id),
+        zap.String("operation", "GetUser"),
+    )
+    
+    logger.Info("Fetching user")
+    
+    user, err := s.repo.FindByID(ctx, id)
+    if err != nil {
+        logger.Error("Failed to fetch user",
+            zap.Error(err),
+            zap.String("error_type", "database_error"),
+        )
+        return nil, err
+    }
+    
+    if user == nil {
+        logger.Warn("User not found")
+        return nil, ErrNotFound
+    }
+    
+    logger.Info("Successfully retrieved user",
+        zap.String("user_name", user.Name),
+    )
+    
+    return user, nil
+}
+</example>
+
+## Dockerfile (Multi-stage Build)
+
+### Production-ready Dockerfile
+
+<example>
+# Dockerfile
+FROM golang:1.21-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache git make
+
+# Set working directory
+WORKDIR /build
+
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build binary
+RUN VERSION=$(cat VERSION) && \
+    CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags="-w -s -X main.Version=$VERSION" \
+    -o myapp \
+    ./cmd/myapp
+
+# Final stage
+FROM alpine:latest
+
+# Install ca-certificates for HTTPS
+RUN apk --no-cache add ca-certificates tzdata
+
+# Create non-root user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+WORKDIR /app
+
+# Copy binary from builder
+COPY --from=builder /build/myapp .
+
+# Change ownership
+RUN chown -R appuser:appgroup /app
+
+# Switch to non-root user
+USER appuser
+
+# Expose port
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+
+# Run binary
+ENTRYPOINT ["./myapp"]
+</example>
+
+## Release Checklist (Go)
+
+- [ ] All tests pass (`go test ./...`)
+- [ ] Race detector clean (`go test -race ./...`)
+- [ ] Code formatted (`gofmt`)
+- [ ] Imports organized (`goimports`)
+- [ ] No vet warnings (`go vet ./...`)
+- [ ] Linter clean (`golangci-lint run`)
+- [ ] Coverage >80%
+- [ ] `go mod tidy` run
+- [ ] VERSION file updated
+- [ ] CHANGELOG.md updated
+- [ ] Git tagged (`git tag v1.0.0`)
+- [ ] CI/CD pipeline green
+
+## Summary: Go Enterprise Tools
+
+| Feature | Tool |
+|---------|------|
+| **Build System** | go build + Makefile |
+| **Testing** | testing package + testify |
+| **Coverage** | go test -cover |
+| **Linting** | golangci-lint |
+| **Formatting** | gofmt + goimports |
+| **Documentation** | godoc |
+| **Security** | gosec |
+| **Logging** | zap / logrus |
+| **Package Manager** | go modules |
