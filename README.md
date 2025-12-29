@@ -6,8 +6,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-52%20passing-brightgreen)](tests/)
 [![PWA](https://img.shields.io/badge/PWA-enabled-purple)](manifest.json)
-
-**🌐 Live Demo:** [https://globe-trekker.web.app](https://globe-trekker.web.app)
+[![Live Demo](https://img.shields.io/badge/🌐_Live_Demo-globe--trekker.web.app-orange?style=for-the-badge)](https://globe-trekker.web.app)
 
 ---
 
