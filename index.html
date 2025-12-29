@@ -117,6 +117,40 @@
           <button id="changeRouteBtn" class="btn-change-route">Change Route</button>
         </div>
 
+        <!-- Date Range Filter Section -->
+        <div class="date-range-section">
+          <div class="date-range-header">
+            <span style="font-weight: bold">📅 View Distance by Period</span>
+          </div>
+          <div class="date-range-controls">
+            <button class="date-range-btn active" onclick="filterByDateRange('all')">All Time</button>
+            <button class="date-range-btn" onclick="filterByDateRange(7)">Last 7 Days</button>
+            <button class="date-range-btn" onclick="filterByDateRange(30)">Last 30 Days</button>
+            <button class="date-range-btn" onclick="filterByDateRange(90)">Last 3 Months</button>
+            <button class="date-range-btn" onclick="showCustomDateRange()">Custom Range</button>
+          </div>
+          <div id="customDateRange" class="custom-date-range" style="display: none;">
+            <input type="date" id="startDate" class="date-input" />
+            <span>to</span>
+            <input type="date" id="endDate" class="date-input" />
+            <button class="btn-primary" onclick="applyCustomDateRange()">Apply</button>
+          </div>
+          <div id="periodStats" class="period-stats" style="display: none;">
+            <div class="period-stat">
+              <span class="period-label">Period Distance:</span>
+              <span class="period-value" id="periodDistance">0 km</span>
+            </div>
+            <div class="period-stat">
+              <span class="period-label">Walk Days:</span>
+              <span class="period-value" id="periodDays">0</span>
+            </div>
+            <div class="period-stat">
+              <span class="period-label">Avg per Day:</span>
+              <span class="period-value" id="periodAvg">0 km</span>
+            </div>
+          </div>
+        </div>
+
         <!-- Stats Section -->
         <div class="stats-grid">
           <div class="stat-card">

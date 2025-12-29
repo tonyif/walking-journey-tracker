@@ -944,3 +944,243 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('setupSection').style.display = 'block';
   }
 });
+
+// ===== DATE RANGE FILTER FUNCTIONALITY =====
+
+let currentDateFilter = 'all';
+let customStartDate = null;
+let customEndDate = null;
+
+/**
+ * Filter walks by date range
+ * @param {string|number} range - 'all', or number of days
+ */
+function filterByDateRange(range) {
+  logger.info('Filtering by date range', { range });
+  currentDateFilter = range;
+
+  // Update active button
+  document.querySelectorAll('.date-range-btn').forEach((btn) => {
+    btn.classList.remove('active');
+  });
+  event.target.classList.add('active');
+
+  // Hide custom date range
+  document.getElementById('customDateRange').style.display = 'none';
+
+  // Calculate and display period stats
+  calculatePeriodStats(range);
+  updateMapForPeriod(range);
+}
+
+/**
+ * Show custom date range picker
+ */
+function showCustomDateRange() {
+  logger.info('Showing custom date range picker');
+  
+  // Update active button
+  document.querySelectorAll('.date-range-btn').forEach((btn) => {
+    btn.classList.remove('active');
+  });
+  event.target.classList.add('active');
+
+  const customRange = document.getElementById('customDateRange');
+  customRange.style.display = 'flex';
+
+  // Set default dates
+  const today = new Date();
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(today.getDate() - 30);
+
+  document.getElementById('endDate').valueAsDate = today;
+  document.getElementById('startDate').valueAsDate = thirtyDaysAgo;
+}
+
+/**
+ * Apply custom date range
+ */
+function applyCustomDateRange() {
+  const startDate = document.getElementById('startDate').value;
+  const endDate = document.getElementById('endDate').value;
+
+  if (!startDate || !endDate) {
+    alert('Please select both start and end dates');
+    return;
+  }
+
+  if (new Date(startDate) > new Date(endDate)) {
+    alert('Start date must be before end date');
+    return;
+  }
+
+  logger.info('Applying custom date range', { startDate, endDate });
+  
+  customStartDate = new Date(startDate);
+  customEndDate = new Date(endDate);
+  currentDateFilter = 'custom';
+
+  calculatePeriodStats('custom');
+  updateMapForPeriod('custom');
+}
+
+/**
+ * Calculate statistics for the selected period
+ * @param {string|number} range - Date range to calculate
+ */
+function calculatePeriodStats(range) {
+  logger.debug('Calculating period stats', { range });
+
+  let startDate, endDate;
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+
+  if (range === 'all') {
+    // All time
+    const allDates = walks.map((w) => new Date(w.date));
+    startDate = allDates.length > 0 ? new Date(Math.min(...allDates)) : today;
+    endDate = today;
+  } else if (range === 'custom') {
+    startDate = customStartDate;
+    endDate = customEndDate;
+  } else {
+    // Last N days
+    startDate = new Date();
+    startDate.setDate(today.getDate() - range);
+    startDate.setHours(0, 0, 0, 0);
+    endDate = today;
+  }
+
+  // Filter walks in this period
+  const periodWalks = walks.filter((walk) => {
+    const walkDate = new Date(walk.date);
+    return walkDate >= startDate && walkDate <= endDate;
+  });
+
+  // Calculate stats
+  const totalDistance = periodWalks.reduce((sum, walk) => sum + walk.distance, 0);
+  const walkDays = periodWalks.length;
+  const avgPerDay = walkDays > 0 ? totalDistance / walkDays : 0;
+
+  // Display stats
+  document.getElementById('periodDistance').textContent = `${totalDistance.toFixed(2)} km`;
+  document.getElementById('periodDays').textContent = walkDays;
+  document.getElementById('periodAvg').textContent = `${avgPerDay.toFixed(2)} km`;
+  document.getElementById('periodStats').style.display = 'flex';
+
+  logger.info('Period stats calculated', {
+    totalDistance,
+    walkDays,
+    avgPerDay,
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString(),
+  });
+
+  return { periodWalks, totalDistance, walkDays, avgPerDay };
+}
+
+/**
+ * Update map to show only the segment covered in the selected period
+ * @param {string|number} range - Date range
+ */
+function updateMapForPeriod(range) {
+  logger.debug('Updating map for period', { range });
+
+  if (!map || !routeCoordinates || routeCoordinates.length === 0) {
+    return;
+  }
+
+  // Calculate period stats to get filtered walks
+  const { periodWalks, totalDistance } = calculatePeriodStats(range);
+
+  if (range === 'all') {
+    // Show full progress (current implementation)
+    updatePosition(totalDistanceCovered);
+    return;
+  }
+
+  // Calculate distance covered BEFORE this period
+  let distanceBeforePeriod = 0;
+  const periodStartDate = range === 'custom' ? customStartDate : new Date(Date.now() - range * 24 * 60 * 60 * 1000);
+  
+  const walksBeforePeriod = walks.filter((w) => new Date(w.date) < periodStartDate);
+  distanceBeforePeriod = walksBeforePeriod.reduce((sum, walk) => sum + walk.distance, 0);
+
+  // Draw a highlighted segment for this period
+  const startDistanceForPeriod = distanceBeforePeriod;
+  const endDistanceForPeriod = distanceBeforePeriod + totalDistance;
+
+  // Remove existing period highlight
+  if (window.periodHighlight) {
+    map.removeLayer(window.periodHighlight);
+  }
+
+  // Get route segment for this period
+  const periodSegment = getRouteSegment(startDistanceForPeriod, endDistanceForPeriod);
+
+  if (periodSegment.length > 0) {
+    // Draw highlighted segment
+    window.periodHighlight = L.polyline(periodSegment, {
+      color: '#ff6b6b',
+      weight: 6,
+      opacity: 0.8,
+    }).addTo(map);
+
+    // Fit map to this segment
+    map.fitBounds(window.periodHighlight.getBounds(), { padding: [50, 50] });
+
+    logger.info('Period segment highlighted on map', {
+      startDistance: startDistanceForPeriod,
+      endDistance: endDistanceForPeriod,
+      segmentPoints: periodSegment.length,
+    });
+  }
+}
+
+/**
+ * Get route coordinates segment between two distances
+ * @param {number} startDist - Start distance in km
+ * @param {number} endDist - End distance in km
+ * @returns {Array} Array of [lat, lng] coordinates
+ */
+function getRouteSegment(startDist, endDist) {
+  const segment = [];
+  let coveredDistance = 0;
+  let startFound = false;
+
+  for (let i = 0; i < routeCoordinates.length - 1; i++) {
+    const lat1 = routeCoordinates[i][0];
+    const lng1 = routeCoordinates[i][1];
+    const lat2 = routeCoordinates[i + 1][0];
+    const lng2 = routeCoordinates[i + 1][1];
+
+    const segmentDist = haversineDistance(lat1, lng1, lat2, lng2);
+
+    if (coveredDistance + segmentDist >= startDist && !startFound) {
+      startFound = true;
+      // Calculate exact start point
+      const ratio = (startDist - coveredDistance) / segmentDist;
+      const startLat = lat1 + ratio * (lat2 - lat1);
+      const startLng = lng1 + ratio * (lng2 - lng1);
+      segment.push([startLat, startLng]);
+    }
+
+    if (startFound) {
+      segment.push([lat2, lng2]);
+    }
+
+    coveredDistance += segmentDist;
+
+    if (coveredDistance >= endDist) {
+      // Calculate exact end point
+      const ratio = (endDist - (coveredDistance - segmentDist)) / segmentDist;
+      const endLat = lat1 + ratio * (lat2 - lat1);
+      const endLng = lng1 + ratio * (lng2 - lng1);
+      segment[segment.length - 1] = [endLat, endLng];
+      break;
+    }
+  }
+
+  return segment;
+}
+

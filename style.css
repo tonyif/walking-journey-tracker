@@ -440,6 +440,102 @@ header h1 {
   line-height: 1.6;
 }
 
+/* Date Range Filter Section */
+.date-range-section {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.date-range-header {
+  margin-bottom: 15px;
+  font-size: 1.1em;
+  color: #333;
+}
+
+.date-range-controls {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 15px;
+}
+
+.date-range-btn {
+  padding: 8px 16px;
+  border: 2px solid #e0e0e0;
+  background: white;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: all 0.3s ease;
+  font-weight: 500;
+}
+
+.date-range-btn:hover {
+  border-color: #667eea;
+  background: #f8f9ff;
+  transform: translateY(-2px);
+}
+
+.date-range-btn.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-color: #667eea;
+}
+
+.custom-date-range {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  margin-bottom: 15px;
+}
+
+.date-input {
+  padding: 8px 12px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 0.9em;
+  cursor: pointer;
+  transition: border-color 0.3s ease;
+}
+
+.date-input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.period-stats {
+  display: flex;
+  gap: 20px;
+  padding: 15px;
+  background: linear-gradient(135deg, #667eea10 0%, #764ba210 100%);
+  border-radius: 8px;
+  border-left: 4px solid #667eea;
+}
+
+.period-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.period-label {
+  font-size: 0.85em;
+  color: #666;
+  font-weight: 500;
+}
+
+.period-value {
+  font-size: 1.3em;
+  font-weight: bold;
+  color: #667eea;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   body {
