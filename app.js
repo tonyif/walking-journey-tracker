@@ -51,6 +51,12 @@ let completedRouteLine;
 /** @type {L.Polyline|null} Pending route line (blue) */
 let pendingRouteLine;
 
+/** @type {L.Polyline|null} Highlighted route segment for a specific period */
+let periodHighlight = null;
+
+/** @type {Array<L.Marker>} Array of checkpoint markers for date range visualization */
+let checkpointMarkers = [];
+
 // ============================================
 // UTILITY FUNCTIONS
 // ============================================
@@ -467,7 +473,7 @@ function setQuickRoute(start, end) {
 }
 
 // Fetch interesting places near current position
-async function fetchNearbyPlaces(lat, lng, radius = 20) {
+async function fetchNearbyPlaces(lat, lng, radius = 30) {
   // Use Overpass API to get interesting places from OpenStreetMap
   const query = `
         [out:json][timeout:25];
@@ -900,6 +906,28 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
   reader.readAsText(file);
 });
 
+/**
+ * Toggle collapsible sections (history/places)
+ * @param {string} section - Section identifier ('history' or 'places')
+ */
+function toggleSection(section) {
+  const contentId = section === 'history' ? 'historyList' : 'placesList';
+  const toggleId = section === 'history' ? 'historyToggle' : 'placesToggle';
+  
+  const content = document.getElementById(contentId);
+  const toggle = document.getElementById(toggleId);
+  
+  if (content.style.display === 'none') {
+    content.style.display = section === 'history' ? 'grid' : 'block';
+    toggle.textContent = '▼';
+    logger.info(`Expanded ${section} section`);
+  } else {
+    content.style.display = 'none';
+    toggle.textContent = '▶';
+    logger.info(`Collapsed ${section} section`);
+  }
+}
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('date').valueAsDate = new Date();
@@ -952,10 +980,74 @@ let customStartDate = null;
 let customEndDate = null;
 
 /**
+ * Select date range mode (all/last/custom)
+ * @param {string} mode - Mode selection ('all', 'last', 'custom')
+ */
+function selectMode(mode) {
+  logger.info('Mode selected', { mode });
+
+  // Update active mode button
+  document.querySelectorAll('.mode-btn').forEach((btn) => {
+    btn.classList.remove('active');
+  });
+  
+  if (mode === 'all') {
+    document.getElementById('modeAllTime').classList.add('active');
+  } else if (mode === 'last') {
+    document.getElementById('modeLastDays').classList.add('active');
+  } else if (mode === 'custom') {
+    document.getElementById('modeCustom').classList.add('active');
+  }
+
+  // Show/hide appropriate sections
+  const sliderSection = document.getElementById('sliderSection');
+  const customSection = document.getElementById('customDateRange');
+
+  if (mode === 'all') {
+    sliderSection.style.display = 'none';
+    customSection.style.display = 'none';
+    filterByDateRange('all');
+  } else if (mode === 'last') {
+    sliderSection.style.display = 'block';
+    customSection.style.display = 'none';
+    const sliderValue = document.getElementById('daysSlider').value;
+    filterByDateRange(parseInt(sliderValue));
+  } else if (mode === 'custom') {
+    sliderSection.style.display = 'none';
+    customSection.style.display = 'flex';
+    // Set default dates
+    const today = new Date();
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(today.getDate() - 30);
+    document.getElementById('endDate').valueAsDate = today;
+    document.getElementById('startDate').valueAsDate = thirtyDaysAgo;
+  }
+}
+
+/**
+ * Update slider value display
+ * @param {string|number} value - Slider value (days)
+ */
+function updateSliderValue(value) {
+  document.getElementById('sliderValue').textContent = value;
+}
+
+/**
+ * Apply slider filter when user finishes sliding
+ * @param {string|number} value - Slider value (days)
+ */
+function applySliderFilter(value) {
+  const days = parseInt(value);
+  logger.info('Applying slider filter', { days });
+  filterByDateRange(days);
+}
+
+/**
  * Filter walks by date range
  * @param {string|number} range - 'all', or number of days
+ * @param {HTMLElement} button - The button that was clicked
  */
-function filterByDateRange(range) {
+function filterByDateRange(range, button) {
   logger.info('Filtering by date range', { range });
   currentDateFilter = range;
 
@@ -963,7 +1055,9 @@ function filterByDateRange(range) {
   document.querySelectorAll('.date-range-btn').forEach((btn) => {
     btn.classList.remove('active');
   });
-  event.target.classList.add('active');
+  if (button) {
+    button.classList.add('active');
+  }
 
   // Hide custom date range
   document.getElementById('customDateRange').style.display = 'none';
@@ -975,15 +1069,18 @@ function filterByDateRange(range) {
 
 /**
  * Show custom date range picker
+ * @param {HTMLElement} button - The button that was clicked
  */
-function showCustomDateRange() {
+function showCustomDateRange(button) {
   logger.info('Showing custom date range picker');
   
   // Update active button
   document.querySelectorAll('.date-range-btn').forEach((btn) => {
     btn.classList.remove('active');
   });
-  event.target.classList.add('active');
+  if (button) {
+    button.classList.add('active');
+  }
 
   const customRange = document.getElementById('customDateRange');
   customRange.style.display = 'flex';
@@ -1080,23 +1177,199 @@ function calculatePeriodStats(range) {
 }
 
 /**
+ * Clears all checkpoint markers from the map
+ */
+function clearCheckpointMarkers() {
+  checkpointMarkers.forEach((marker) => {
+    try {
+      if (map && marker) {
+        map.removeLayer(marker);
+      }
+    } catch (error) {
+      logger.warn('Error removing checkpoint marker', { error: error.message });
+    }
+  });
+  checkpointMarkers = [];
+  logger.debug('Cleared checkpoint markers');
+}
+
+/**
+ * Finds GPS position at a specific distance along the route
+ * @param {number} targetDistance - Distance in km
+ * @returns {Object|null} Object with lat, lng properties or null
+ */
+function findPositionAtDistance(targetDistance) {
+  if (!fullRouteCoordinates || fullRouteCoordinates.length === 0) {
+    return null;
+  }
+
+  let coveredDistance = 0;
+
+  for (let i = 0; i < fullRouteCoordinates.length - 1; i++) {
+    const lat1 = fullRouteCoordinates[i][0];
+    const lng1 = fullRouteCoordinates[i][1];
+    const lat2 = fullRouteCoordinates[i + 1][0];
+    const lng2 = fullRouteCoordinates[i + 1][1];
+
+    const segmentDist = calculateDistance(lat1, lng1, lat2, lng2);
+
+    if (coveredDistance + segmentDist >= targetDistance) {
+      // Interpolate exact position
+      const ratio = (targetDistance - coveredDistance) / segmentDist;
+      const lat = lat1 + ratio * (lat2 - lat1);
+      const lng = lng1 + ratio * (lng2 - lng1);
+      return { lat, lng };
+    }
+
+    coveredDistance += segmentDist;
+  }
+
+  // If we've reached the end, return the last point
+  const lastPoint = fullRouteCoordinates[fullRouteCoordinates.length - 1];
+  return { lat: lastPoint[0], lng: lastPoint[1] };
+}
+
+/**
+ * Adds checkpoint markers for each day in the period
+ * @param {Array} periodWalks - Array of walks in the selected period
+ * @param {number} distanceBeforePeriod - Distance covered before this period
+ */
+function addCheckpointMarkers(periodWalks, distanceBeforePeriod) {
+  if (!periodWalks || periodWalks.length === 0) {
+    return;
+  }
+
+  // Group walks by date and calculate cumulative distance
+  const dailyCheckpoints = [];
+  let cumulativeDistance = distanceBeforePeriod;
+
+  // Sort walks by date
+  const sortedWalks = [...periodWalks].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  // Create checkpoints for each unique day
+  const walksByDay = {};
+  sortedWalks.forEach((walk) => {
+    const dateStr = walk.date;
+    if (!walksByDay[dateStr]) {
+      walksByDay[dateStr] = { date: dateStr, distance: 0 };
+    }
+    walksByDay[dateStr].distance += walk.distance;
+  });
+
+  // Calculate cumulative position for each day
+  Object.values(walksByDay).forEach((day, index) => {
+    cumulativeDistance += day.distance;
+    dailyCheckpoints.push({
+      date: day.date,
+      distance: day.distance,
+      cumulativeDistance: cumulativeDistance,
+      dayNumber: index + 1,
+    });
+  });
+
+  // Add markers for each checkpoint
+  dailyCheckpoints.forEach((checkpoint) => {
+    try {
+      const position = findPositionAtDistance(checkpoint.cumulativeDistance);
+
+      if (position) {
+        const dateObj = new Date(checkpoint.date);
+        const formattedDate = dateObj.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+        });
+
+        // Create custom marker with day number
+        const markerIcon = L.divIcon({
+          className: 'checkpoint-marker',
+          html: `
+            <div class="checkpoint-icon">
+              <div class="checkpoint-number">${checkpoint.dayNumber}</div>
+              <div class="checkpoint-label">${formattedDate}</div>
+              <div class="checkpoint-distance">${checkpoint.distance.toFixed(1)} km</div>
+            </div>
+          `,
+          iconSize: [60, 80],
+          iconAnchor: [30, 40],
+        });
+
+        const marker = L.marker([position.lat, position.lng], {
+          icon: markerIcon,
+        }).addTo(map);
+
+        checkpointMarkers.push(marker);
+
+        logger.debug('Added checkpoint marker', {
+          day: checkpoint.dayNumber,
+          date: checkpoint.date,
+          distance: checkpoint.distance,
+          position: position,
+        });
+      } else {
+        logger.warn('Could not find position for checkpoint', { checkpoint });
+      }
+    } catch (error) {
+      logger.error('Error adding checkpoint marker', {
+        checkpoint,
+        error: error.message,
+      });
+    }
+  });
+
+  logger.info('Added checkpoint markers', { count: checkpointMarkers.length });
+}
+
+/**
  * Update map to show only the segment covered in the selected period
  * @param {string|number} range - Date range
  */
 function updateMapForPeriod(range) {
-  logger.debug('Updating map for period', { range });
+  try {
+    logger.debug('Updating map for period', { range });
 
-  if (!map || !routeCoordinates || routeCoordinates.length === 0) {
+    if (!map || !fullRouteCoordinates || fullRouteCoordinates.length === 0) {
+      logger.warn('Cannot update map for period - map or route not ready');
+      return;
+    }
+
+    if (!isRoutingComplete) {
+      logger.warn('Cannot update map for period - routing not complete yet');
+      return;
+    }
+
+    // Ensure base route lines exist before manipulating them
+    if (!completedRouteLine && !pendingRouteLine) {
+      logger.debug('Base route lines not created yet, creating them now');
+      updateRouteVisualization();
+    }
+
+    // Calculate period stats to get filtered walks
+    const { periodWalks, totalDistance } = calculatePeriodStats(range);
+
+  if (range === 'all') {
+    // Remove period highlight and restore normal view
+    if (window.periodHighlight) {
+      map.removeLayer(window.periodHighlight);
+      window.periodHighlight = null;
+    }
+    
+    // Clear checkpoint markers
+    clearCheckpointMarkers();
+    
+    // Restore full route visualization
+    updateRouteVisualization();
+    updatePosition(totalDistanceCovered);
+    
+    logger.info('Restored full route view');
     return;
   }
 
-  // Calculate period stats to get filtered walks
-  const { periodWalks, totalDistance } = calculatePeriodStats(range);
-
-  if (range === 'all') {
-    // Show full progress (current implementation)
-    updatePosition(totalDistanceCovered);
-    return;
+  // Dim the base routes to make period stand out
+  if (completedRouteLine) {
+    completedRouteLine.setStyle({ opacity: 0.2, weight: 4 });
+  }
+  if (pendingRouteLine) {
+    pendingRouteLine.setStyle({ opacity: 0.2, weight: 4 });
   }
 
   // Calculate distance covered BEFORE this period
@@ -1110,21 +1383,27 @@ function updateMapForPeriod(range) {
   const startDistanceForPeriod = distanceBeforePeriod;
   const endDistanceForPeriod = distanceBeforePeriod + totalDistance;
 
-  // Remove existing period highlight
+  // Remove existing period highlight and checkpoint markers
   if (window.periodHighlight) {
     map.removeLayer(window.periodHighlight);
   }
+  clearCheckpointMarkers();
 
   // Get route segment for this period
   const periodSegment = getRouteSegment(startDistanceForPeriod, endDistanceForPeriod);
 
   if (periodSegment.length > 0) {
-    // Draw highlighted segment
+    // Draw highlighted segment (bright and thick)
     window.periodHighlight = L.polyline(periodSegment, {
-      color: '#ff6b6b',
-      weight: 6,
-      opacity: 0.8,
+      color: '#ff4444',
+      weight: 8,
+      opacity: 1.0,
+      lineJoin: 'round',
+      lineCap: 'round',
     }).addTo(map);
+
+    // Add checkpoint markers for each day in the period
+    addCheckpointMarkers(periodWalks, distanceBeforePeriod);
 
     // Fit map to this segment
     map.fitBounds(window.periodHighlight.getBounds(), { padding: [50, 50] });
@@ -1133,7 +1412,28 @@ function updateMapForPeriod(range) {
       startDistance: startDistanceForPeriod,
       endDistance: endDistanceForPeriod,
       segmentPoints: periodSegment.length,
+      checkpointCount: checkpointMarkers.length,
     });
+  } else {
+    logger.warn('No segment found for this period - might be no walks in range');
+  }
+  } catch (error) {
+    logger.error('Error updating map for period', {
+      range,
+      error: error.message,
+      stack: error.stack,
+    });
+    // Try to restore normal view on error
+    try {
+      if (completedRouteLine) {
+        completedRouteLine.setStyle({ opacity: 0.8, weight: 6 });
+      }
+      if (pendingRouteLine) {
+        pendingRouteLine.setStyle({ opacity: 0.5, weight: 6 });
+      }
+    } catch (restoreError) {
+      logger.error('Error restoring route visualization', { error: restoreError.message });
+    }
   }
 }
 
@@ -1148,13 +1448,13 @@ function getRouteSegment(startDist, endDist) {
   let coveredDistance = 0;
   let startFound = false;
 
-  for (let i = 0; i < routeCoordinates.length - 1; i++) {
-    const lat1 = routeCoordinates[i][0];
-    const lng1 = routeCoordinates[i][1];
-    const lat2 = routeCoordinates[i + 1][0];
-    const lng2 = routeCoordinates[i + 1][1];
+  for (let i = 0; i < fullRouteCoordinates.length - 1; i++) {
+    const lat1 = fullRouteCoordinates[i][0];
+    const lng1 = fullRouteCoordinates[i][1];
+    const lat2 = fullRouteCoordinates[i + 1][0];
+    const lng2 = fullRouteCoordinates[i + 1][1];
 
-    const segmentDist = haversineDistance(lat1, lng1, lat2, lng2);
+    const segmentDist = calculateDistance(lat1, lng1, lat2, lng2);
 
     if (coveredDistance + segmentDist >= startDist && !startFound) {
       startFound = true;
