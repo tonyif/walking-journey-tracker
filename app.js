@@ -52,7 +52,7 @@ let completedRouteLine;
 let pendingRouteLine;
 
 /** @type {L.Polyline|null} Highlighted route segment for a specific period */
-let periodHighlight = null;
+const periodHighlight = null;
 
 /** @type {Array<L.Marker>} Array of checkpoint markers for date range visualization */
 let checkpointMarkers = [];
@@ -77,11 +77,12 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   const R = 6371; // Earth's radius in km
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
-    + Math.cos((lat1 * Math.PI) / 180)
-      * Math.cos((lat2 * Math.PI) / 180)
-      * Math.sin(dLon / 2)
-      * Math.sin(dLon / 2);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
@@ -184,7 +185,8 @@ async function buildCompleteRoute(start, end) {
   const loadingMessage = document.createElement('div');
   loadingMessage.id = 'loading-message';
   loadingMessage.innerHTML = '🗺️ Calculating route along real roads... Please wait...';
-  loadingMessage.style.cssText = 'position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #667eea; color: white; padding: 15px 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 10000; font-weight: bold;';
+  loadingMessage.style.cssText =
+    'position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #667eea; color: white; padding: 15px 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 10000; font-weight: bold;';
   document.body.appendChild(loadingMessage);
 
   fullRouteCoordinates = [];
@@ -237,15 +239,17 @@ function getPositionOnRoute(distanceCovered) {
       fullRouteCoordinates[i][0],
       fullRouteCoordinates[i][1],
       fullRouteCoordinates[i + 1][0],
-      fullRouteCoordinates[i + 1][1],
+      fullRouteCoordinates[i + 1][1]
     );
 
     if (remainingDistance <= segmentDistance) {
       const ratio = remainingDistance / segmentDistance;
-      const lat = fullRouteCoordinates[i][0]
-        + (fullRouteCoordinates[i + 1][0] - fullRouteCoordinates[i][0]) * ratio;
-      const lng = fullRouteCoordinates[i][1]
-        + (fullRouteCoordinates[i + 1][1] - fullRouteCoordinates[i][1]) * ratio;
+      const lat =
+        fullRouteCoordinates[i][0] +
+        (fullRouteCoordinates[i + 1][0] - fullRouteCoordinates[i][0]) * ratio;
+      const lng =
+        fullRouteCoordinates[i][1] +
+        (fullRouteCoordinates[i + 1][1] - fullRouteCoordinates[i][1]) * ratio;
 
       // Calculate progress
       const totalCovered = distanceCovered;
@@ -328,7 +332,7 @@ function updateRouteVisualization() {
       fullRouteCoordinates[i][0],
       fullRouteCoordinates[i][1],
       fullRouteCoordinates[i + 1][0],
-      fullRouteCoordinates[i + 1][1],
+      fullRouteCoordinates[i + 1][1]
     );
 
     if (remainingDistance <= segmentDistance) {
@@ -400,7 +404,7 @@ function updateCurrentPosition() {
   currentMarker = L.marker([position.lat, position.lng], { icon: currentIcon })
     .addTo(map)
     .bindPopup(
-      `<b>📍 You are here!</b><br>${position.name}<br>Distance covered: ${totalDistance.toFixed(1)} km`,
+      `<b>📍 You are here!</b><br>${position.name}<br>Distance covered: ${totalDistance.toFixed(1)} km`
     )
     .openPopup();
 
@@ -416,7 +420,8 @@ function getTotalDistance() {
 function updateStats() {
   const totalDistance = getTotalDistance();
   const remainingDistance = Math.max(0, TOTAL_ROUTE_DISTANCE - totalDistance);
-  const progressPercent = TOTAL_ROUTE_DISTANCE > 0 ? Math.min(100, (totalDistance / TOTAL_ROUTE_DISTANCE) * 100) : 0;
+  const progressPercent =
+    TOTAL_ROUTE_DISTANCE > 0 ? Math.min(100, (totalDistance / TOTAL_ROUTE_DISTANCE) * 100) : 0;
   const position = getPositionOnRoute(totalDistance);
 
   document.getElementById('totalDistance').textContent = totalDistance.toFixed(1);
@@ -425,7 +430,8 @@ function updateStats() {
   document.getElementById('currentLocation').textContent = position ? position.name : 'Not Started';
 
   if (routeConfig) {
-    document.getElementById('routeInfo').textContent = `${routeConfig.startName} → ${routeConfig.endName}`;
+    document.getElementById('routeInfo').textContent =
+      `${routeConfig.startName} → ${routeConfig.endName}`;
   }
 
   document.getElementById('progressFill').style.width = `${progressPercent}%`;
@@ -438,7 +444,8 @@ function updateHistory() {
   const historyList = document.getElementById('historyList');
 
   if (walks.length === 0) {
-    historyList.innerHTML = '<div class="empty-message">No walks logged yet. Start your journey!</div>';
+    historyList.innerHTML =
+      '<div class="empty-message">No walks logged yet. Start your journey!</div>';
     return;
   }
 
@@ -455,7 +462,7 @@ function updateHistory() {
             </div>
             <button class="history-delete" onclick="deleteWalk('${walk.id}')">Delete</button>
         </div>
-    `,
+    `
     )
     .join('');
 }
@@ -503,12 +510,12 @@ async function fetchNearbyPlaces(lat, lng, radius = 30) {
           return {
             name: el.tags.name,
             type:
-              el.tags.tourism
-              || el.tags.historic
-              || el.tags.amenity
-              || el.tags.natural
-              || el.tags.place
-              || 'place',
+              el.tags.tourism ||
+              el.tags.historic ||
+              el.tags.amenity ||
+              el.tags.natural ||
+              el.tags.place ||
+              'place',
             distance: dist,
             lat: el.lat,
             lon: el.lon,
@@ -541,12 +548,14 @@ async function updateNearbyPlaces() {
   const nearbySection = document.getElementById('nearbyPlaces');
 
   nearbySection.style.display = 'block';
-  placesList.innerHTML = '<div style="text-align: center; color: #999;">🔍 Searching for interesting places...</div>';
+  placesList.innerHTML =
+    '<div style="text-align: center; color: #999;">🔍 Searching for interesting places...</div>';
 
   const places = await fetchNearbyPlaces(position.lat, position.lng);
 
   if (places.length === 0) {
-    placesList.innerHTML = '<div style="color: #999; font-style: italic;">No major landmarks found nearby. You might be in a rural or remote area!</div>';
+    placesList.innerHTML =
+      '<div style="color: #999; font-style: italic;">No major landmarks found nearby. You might be in a rural or remote area!</div>';
     return;
   }
 
@@ -607,7 +616,8 @@ document.getElementById('setupForm').addEventListener('submit', async (e) => {
   const loadingMessage = document.createElement('div');
   loadingMessage.id = 'geocode-loading';
   loadingMessage.innerHTML = '🌍 Finding locations...';
-  loadingMessage.style.cssText = 'position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #667eea; color: white; padding: 15px 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 10000; font-weight: bold;';
+  loadingMessage.style.cssText =
+    'position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #667eea; color: white; padding: 15px 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 10000; font-weight: bold;';
   document.body.appendChild(loadingMessage);
 
   // Geocode locations
@@ -639,7 +649,8 @@ document.getElementById('setupForm').addEventListener('submit', async (e) => {
   endPoint = end;
 
   document.getElementById('setupSection').style.display = 'none';
-  document.getElementById('routeSubtitle').textContent = `${startLocationInput} to ${endLocationInput}`;
+  document.getElementById('routeSubtitle').textContent =
+    `${startLocationInput} to ${endLocationInput}`;
 
   initMap();
   updateStats();
@@ -648,7 +659,7 @@ document.getElementById('setupForm').addEventListener('submit', async (e) => {
   if (walkCount > 0) {
     setTimeout(() => {
       alert(
-        `✅ Route changed!\n\n📊 Your ${walkCount} walk(s) totaling ${totalKm.toFixed(1)} km have been kept\n🗺️ Progress recalculated on new route`,
+        `✅ Route changed!\n\n📊 Your ${walkCount} walk(s) totaling ${totalKm.toFixed(1)} km have been kept\n🗺️ Progress recalculated on new route`
       );
     }, 500);
   }
@@ -835,7 +846,7 @@ document.getElementById('exportData').addEventListener('click', () => {
   URL.revokeObjectURL(url);
 
   alert(
-    `✅ Data exported!\n\n📊 ${walks.length} walks\n📍 Route: ${routeConfig ? `${routeConfig.startName} → ${routeConfig.endName}` : 'Not set'}\n\n💡 Import this file on another device to sync!`,
+    `✅ Data exported!\n\n📊 ${walks.length} walks\n📍 Route: ${routeConfig ? `${routeConfig.startName} → ${routeConfig.endName}` : 'Not set'}\n\n💡 Import this file on another device to sync!`
   );
 });
 
@@ -879,7 +890,8 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
           startPoint = routeConfig.startCoords;
           endPoint = routeConfig.endCoords;
 
-          document.getElementById('routeSubtitle').textContent = `${routeConfig.startName} to ${routeConfig.endName}`;
+          document.getElementById('routeSubtitle').textContent =
+            `${routeConfig.startName} to ${routeConfig.endName}`;
           document.getElementById('setupSection').style.display = 'none';
 
           // Reinitialize map with new route
@@ -891,7 +903,7 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
         updateHistory();
 
         alert(
-          `✅ Data imported successfully!\n\n📊 ${importWalkCount} walks loaded\n🗺️ ${importRoute}`,
+          `✅ Data imported successfully!\n\n📊 ${importWalkCount} walks loaded\n🗺️ ${importRoute}`
         );
       }
     } catch (error) {
@@ -913,10 +925,10 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
 function toggleSection(section) {
   const contentId = section === 'history' ? 'historyList' : 'placesList';
   const toggleId = section === 'history' ? 'historyToggle' : 'placesToggle';
-  
+
   const content = document.getElementById(contentId);
   const toggle = document.getElementById(toggleId);
-  
+
   if (content.style.display === 'none') {
     content.style.display = section === 'history' ? 'grid' : 'block';
     toggle.textContent = '▼';
@@ -962,7 +974,8 @@ document.addEventListener('DOMContentLoaded', () => {
     startPoint = routeConfig.startCoords;
     endPoint = routeConfig.endCoords;
 
-    document.getElementById('routeSubtitle').textContent = `${routeConfig.startName} to ${routeConfig.endName}`;
+    document.getElementById('routeSubtitle').textContent =
+      `${routeConfig.startName} to ${routeConfig.endName}`;
 
     initMap();
     updateStats();
@@ -990,7 +1003,7 @@ function selectMode(mode) {
   document.querySelectorAll('.mode-btn').forEach((btn) => {
     btn.classList.remove('active');
   });
-  
+
   if (mode === 'all') {
     document.getElementById('modeAllTime').classList.add('active');
   } else if (mode === 'last') {
@@ -1073,7 +1086,7 @@ function filterByDateRange(range, button) {
  */
 function showCustomDateRange(button) {
   logger.info('Showing custom date range picker');
-  
+
   // Update active button
   document.querySelectorAll('.date-range-btn').forEach((btn) => {
     btn.classList.remove('active');
@@ -1112,7 +1125,7 @@ function applyCustomDateRange() {
   }
 
   logger.info('Applying custom date range', { startDate, endDate });
-  
+
   customStartDate = new Date(startDate);
   customEndDate = new Date(endDate);
   currentDateFilter = 'custom';
@@ -1128,7 +1141,8 @@ function applyCustomDateRange() {
 function calculatePeriodStats(range) {
   logger.debug('Calculating period stats', { range });
 
-  let startDate, endDate;
+  let startDate;
+  let endDate;
   const today = new Date();
   today.setHours(23, 59, 59, 999);
 
@@ -1173,7 +1187,12 @@ function calculatePeriodStats(range) {
     endDate: endDate.toISOString(),
   });
 
-  return { periodWalks, totalDistance, walkDays, avgPerDay };
+  return {
+    periodWalks,
+    totalDistance,
+    walkDays,
+    avgPerDay,
+  };
 }
 
 /**
@@ -1262,7 +1281,7 @@ function addCheckpointMarkers(periodWalks, distanceBeforePeriod) {
     dailyCheckpoints.push({
       date: day.date,
       distance: day.distance,
-      cumulativeDistance: cumulativeDistance,
+      cumulativeDistance,
       dayNumber: index + 1,
     });
   });
@@ -1303,7 +1322,7 @@ function addCheckpointMarkers(periodWalks, distanceBeforePeriod) {
           day: checkpoint.dayNumber,
           date: checkpoint.date,
           distance: checkpoint.distance,
-          position: position,
+          position,
         });
       } else {
         logger.warn('Could not find position for checkpoint', { checkpoint });
@@ -1346,77 +1365,78 @@ function updateMapForPeriod(range) {
     // Calculate period stats to get filtered walks
     const { periodWalks, totalDistance } = calculatePeriodStats(range);
 
-  if (range === 'all') {
-    // Remove period highlight and restore normal view
+    if (range === 'all') {
+      // Remove period highlight and restore normal view
+      if (window.periodHighlight) {
+        map.removeLayer(window.periodHighlight);
+        window.periodHighlight = null;
+      }
+
+      // Clear checkpoint markers
+      clearCheckpointMarkers();
+
+      // Restore full route visualization
+      updateRouteVisualization();
+      updatePosition(totalDistanceCovered);
+
+      logger.info('Restored full route view');
+      return;
+    }
+
+    // Dim the base routes to make period stand out
+    if (completedRouteLine) {
+      completedRouteLine.setStyle({ opacity: 0.2, weight: 4 });
+    }
+    if (pendingRouteLine) {
+      pendingRouteLine.setStyle({ opacity: 0.2, weight: 4 });
+    }
+
+    // Calculate distance covered BEFORE this period
+    let distanceBeforePeriod = 0;
+    const periodStartDate =
+      range === 'custom' ? customStartDate : new Date(Date.now() - range * 24 * 60 * 60 * 1000);
+
+    const walksBeforePeriod = walks.filter((w) => new Date(w.date) < periodStartDate);
+    distanceBeforePeriod = walksBeforePeriod.reduce((sum, walk) => sum + walk.distance, 0);
+
+    // Draw a highlighted segment for this period
+    const startDistanceForPeriod = distanceBeforePeriod;
+    const endDistanceForPeriod = distanceBeforePeriod + totalDistance;
+
+    // Remove existing period highlight and checkpoint markers
     if (window.periodHighlight) {
       map.removeLayer(window.periodHighlight);
-      window.periodHighlight = null;
     }
-    
-    // Clear checkpoint markers
     clearCheckpointMarkers();
-    
-    // Restore full route visualization
-    updateRouteVisualization();
-    updatePosition(totalDistanceCovered);
-    
-    logger.info('Restored full route view');
-    return;
-  }
 
-  // Dim the base routes to make period stand out
-  if (completedRouteLine) {
-    completedRouteLine.setStyle({ opacity: 0.2, weight: 4 });
-  }
-  if (pendingRouteLine) {
-    pendingRouteLine.setStyle({ opacity: 0.2, weight: 4 });
-  }
+    // Get route segment for this period
+    const periodSegment = getRouteSegment(startDistanceForPeriod, endDistanceForPeriod);
 
-  // Calculate distance covered BEFORE this period
-  let distanceBeforePeriod = 0;
-  const periodStartDate = range === 'custom' ? customStartDate : new Date(Date.now() - range * 24 * 60 * 60 * 1000);
-  
-  const walksBeforePeriod = walks.filter((w) => new Date(w.date) < periodStartDate);
-  distanceBeforePeriod = walksBeforePeriod.reduce((sum, walk) => sum + walk.distance, 0);
+    if (periodSegment.length > 0) {
+      // Draw highlighted segment (bright and thick)
+      window.periodHighlight = L.polyline(periodSegment, {
+        color: '#ff4444',
+        weight: 8,
+        opacity: 1.0,
+        lineJoin: 'round',
+        lineCap: 'round',
+      }).addTo(map);
 
-  // Draw a highlighted segment for this period
-  const startDistanceForPeriod = distanceBeforePeriod;
-  const endDistanceForPeriod = distanceBeforePeriod + totalDistance;
+      // Add checkpoint markers for each day in the period
+      addCheckpointMarkers(periodWalks, distanceBeforePeriod);
 
-  // Remove existing period highlight and checkpoint markers
-  if (window.periodHighlight) {
-    map.removeLayer(window.periodHighlight);
-  }
-  clearCheckpointMarkers();
+      // Fit map to this segment
+      map.fitBounds(window.periodHighlight.getBounds(), { padding: [50, 50] });
 
-  // Get route segment for this period
-  const periodSegment = getRouteSegment(startDistanceForPeriod, endDistanceForPeriod);
-
-  if (periodSegment.length > 0) {
-    // Draw highlighted segment (bright and thick)
-    window.periodHighlight = L.polyline(periodSegment, {
-      color: '#ff4444',
-      weight: 8,
-      opacity: 1.0,
-      lineJoin: 'round',
-      lineCap: 'round',
-    }).addTo(map);
-
-    // Add checkpoint markers for each day in the period
-    addCheckpointMarkers(periodWalks, distanceBeforePeriod);
-
-    // Fit map to this segment
-    map.fitBounds(window.periodHighlight.getBounds(), { padding: [50, 50] });
-
-    logger.info('Period segment highlighted on map', {
-      startDistance: startDistanceForPeriod,
-      endDistance: endDistanceForPeriod,
-      segmentPoints: periodSegment.length,
-      checkpointCount: checkpointMarkers.length,
-    });
-  } else {
-    logger.warn('No segment found for this period - might be no walks in range');
-  }
+      logger.info('Period segment highlighted on map', {
+        startDistance: startDistanceForPeriod,
+        endDistance: endDistanceForPeriod,
+        segmentPoints: periodSegment.length,
+        checkpointCount: checkpointMarkers.length,
+      });
+    } else {
+      logger.warn('No segment found for this period - might be no walks in range');
+    }
   } catch (error) {
     logger.error('Error updating map for period', {
       range,
@@ -1483,4 +1503,3 @@ function getRouteSegment(startDist, endDist) {
 
   return segment;
 }
-

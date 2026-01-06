@@ -63,6 +63,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - HTTPS-only deployment via Firebase Hosting
 - Secure user data storage with read/write access controls
 
-[Unreleased]: https://github.com/YOUR-USERNAME/walking-journey-tracker/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/YOUR-USERNAME/walking-journey-tracker/releases/tag/v1.0.0
+[Unreleased]: https://github.com/tonyif/walking-journey-tracker/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/tonyif/walking-journey-tracker/releases/tag/v1.0.0
 

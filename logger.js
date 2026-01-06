@@ -155,9 +155,10 @@ class Logger {
 
 // Create singleton instance
 // Detect environment: localhost/127.0.0.1 = development, otherwise production
-const isDevelopment = window.location.hostname === 'localhost' 
-  || window.location.hostname === '127.0.0.1' 
-  || window.location.hostname === '';
+const isDevelopment =
+  window.location.hostname === 'localhost' ||
+  window.location.hostname === '127.0.0.1' ||
+  window.location.hostname === '';
 
 const logger = new Logger(isDevelopment ? LogLevel.DEBUG : LogLevel.INFO);
 

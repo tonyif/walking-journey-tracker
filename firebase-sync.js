@@ -136,8 +136,7 @@ async function syncToCloud() {
   try {
     // Sync walks
     for (const walk of walks) {
-      await db.collection('users').doc(user.uid).collection('walks').doc(walk.id)
-        .set(walk);
+      await db.collection('users').doc(user.uid).collection('walks').doc(walk.id).set(walk);
     }
 
     // Sync route
@@ -211,7 +210,8 @@ function updateRouteDisplay() {
   if (routeConfig) {
     startPoint = routeConfig.startCoords;
     endPoint = routeConfig.endCoords;
-    document.getElementById('routeSubtitle').textContent = `${routeConfig.startName} to ${routeConfig.endName}`;
+    document.getElementById('routeSubtitle').textContent =
+      `${routeConfig.startName} to ${routeConfig.endName}`;
     document.getElementById('setupSection').style.display = 'none';
     initMap();
   }

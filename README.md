@@ -91,7 +91,7 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR-USERNAME/walking-journey-tracker.git
+git clone https://github.com/tonyif/walking-journey-tracker.git
 cd walking-journey-tracker
 
 # Install dependencies
@@ -465,12 +465,12 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Tony Isaac**
 - Email: tony.issac@gmail.com
-- GitHub: [@YOUR-USERNAME](https://github.com/YOUR-USERNAME)
+- GitHub: [@tonyif](https://github.com/tonyif)
 
 **Project Links:**
 - Live Demo: https://globe-trekker.web.app
-- Repository: https://github.com/YOUR-USERNAME/walking-journey-tracker
-- Issues: https://github.com/YOUR-USERNAME/walking-journey-tracker/issues
+- Repository: https://github.com/tonyif/walking-journey-tracker
+- Issues: https://github.com/tonyif/walking-journey-tracker/issues
 
 ---
 

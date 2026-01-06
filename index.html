@@ -122,28 +122,34 @@
           <div class="date-range-header">
             <span style="font-weight: bold">📅 View Distance by Period</span>
           </div>
-          
+
           <!-- Mode Selector -->
           <div class="date-range-mode">
-            <button class="mode-btn active" id="modeAllTime" onclick="selectMode('all')">All Time</button>
-            <button class="mode-btn" id="modeLastDays" onclick="selectMode('last')">Last N Days</button>
-            <button class="mode-btn" id="modeCustom" onclick="selectMode('custom')">Custom Range</button>
+            <button class="mode-btn active" id="modeAllTime" onclick="selectMode('all')">
+              All Time
+            </button>
+            <button class="mode-btn" id="modeLastDays" onclick="selectMode('last')">
+              Last N Days
+            </button>
+            <button class="mode-btn" id="modeCustom" onclick="selectMode('custom')">
+              Custom Range
+            </button>
           </div>
 
           <!-- Slider for Last N Days -->
-          <div id="sliderSection" class="slider-section" style="display: none;">
+          <div id="sliderSection" class="slider-section" style="display: none">
             <div class="slider-header">
               <span class="slider-label">Last <strong id="sliderValue">7</strong> Days</span>
             </div>
             <div class="slider-container">
               <span class="slider-min">1</span>
-              <input 
-                type="range" 
-                id="daysSlider" 
-                class="days-slider" 
-                min="1" 
-                max="30" 
-                value="7" 
+              <input
+                type="range"
+                id="daysSlider"
+                class="days-slider"
+                min="1"
+                max="30"
+                value="7"
                 oninput="updateSliderValue(this.value)"
                 onchange="applySliderFilter(this.value)"
               />
@@ -152,7 +158,7 @@
           </div>
 
           <!-- Custom Date Range -->
-          <div id="customDateRange" class="custom-date-range" style="display: none;">
+          <div id="customDateRange" class="custom-date-range" style="display: none">
             <input type="date" id="startDate" class="date-input" />
             <span>to</span>
             <input type="date" id="endDate" class="date-input" />
@@ -160,7 +166,7 @@
           </div>
 
           <!-- Period Stats -->
-          <div id="periodStats" class="period-stats" style="display: none;">
+          <div id="periodStats" class="period-stats" style="display: none">
             <div class="period-stat">
               <span class="period-label">Period Distance:</span>
               <span class="period-value" id="periodDistance">0 km</span>
@@ -245,7 +251,10 @@
                 id="refreshPlaces"
                 class="btn-secondary"
                 style="padding: 5px 12px; font-size: 0.85em"
-                onclick="event.stopPropagation(); fetchNearbyPlaces()"
+                onclick="
+                  event.stopPropagation();
+                  fetchNearbyPlaces();
+                "
               >
                 Refresh
               </button>
@@ -328,7 +337,10 @@
         <div class="history-section">
           <div class="history-header" style="cursor: pointer" onclick="toggleSection('history')">
             <h2><span id="historyToggle">▼</span> Walking History</h2>
-            <div style="display: flex; gap: 10px; flex-wrap: wrap" onclick="event.stopPropagation()">
+            <div
+              style="display: flex; gap: 10px; flex-wrap: wrap"
+              onclick="event.stopPropagation()"
+            >
               <button id="exportData" class="btn-secondary" style="background: #10b981">
                 📤 Export Data
               </button>
