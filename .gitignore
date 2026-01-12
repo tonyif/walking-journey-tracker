@@ -57,3 +57,10 @@ Desktop.ini
 !screenshots/*.png
 !screenshots/*.jpg
 !screenshots/*.jpeg
+
+# Cursor IDE rules
+.cursor/
+
+# Corp QA audit reports (internal use only)
+CORP_QA*.md
+MANUAL_FIXES_GUIDE.md
